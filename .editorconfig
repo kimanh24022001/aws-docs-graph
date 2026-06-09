@@ -1,0 +1,36 @@
+# EditorConfig — https://editorconfig.org
+# Picked up by most editors automatically; no plugin needed for VS Code, IntelliJ, etc.
+
+root = true
+
+[*]
+end_of_line = lf
+insert_final_newline = true
+charset = utf-8
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Python — PEP 8 says 4 spaces.
+[*.py]
+indent_size = 4
+
+# Java — convention.
+[*.{java,kt}]
+indent_size = 4
+
+# Markdown — trailing whitespace can be intentional (line break).
+[*.md]
+trim_trailing_whitespace = false
+
+# Makefiles require tabs.
+[Makefile]
+indent_style = tab
+
+# Tab in Go, but we don't use Go in this project — included defensively.
+[*.go]
+indent_style = tab
+
+# Terraform — HashiCorp standard.
+[*.{tf,tfvars}]
+indent_size = 2
