@@ -30,10 +30,11 @@ backend system end to end:
 
 ## Status
 
-**Phase 1 — design complete, implementation not yet started.**
+**Phase 1 — implementation in progress (Week 1 of 2).**
 
 - Design doc: [`docs/superpowers/specs/2026-06-04-aws-docs-graph-design.md`](docs/superpowers/specs/2026-06-04-aws-docs-graph-design.md)
-- Implementation plan: in `docs/superpowers/plans/` (added next)
+- Calendar: [`docs/superpowers/specs/2026-06-12-phase1-calendar-design.md`](docs/superpowers/specs/2026-06-12-phase1-calendar-design.md)
+- Implementation plans: [`docs/superpowers/plans/`](docs/superpowers/plans/)
 - Runbooks (deploy / rollback / rotate-secrets): in `docs/runbooks/` once each is exercised
 
 ## Cost ceiling
@@ -64,22 +65,32 @@ EventBridge (Mondays 02:00 UTC) → ingest cron → Python /ingest/sitemap
 The full architecture, data model, security model, and SDLC plumbing are
 described in the design doc.
 
-## Repo layout (planned)
+## Repo layout
 
 ```
 aws-docs-graph/
-├── .github/workflows/    — ci.yml, deploy-prod.yml, reusable/
+├── .github/workflows/    — ci.yml, deploy-prod.yml
 ├── infra/                — Terraform: modules/, envs/{prod}/
 ├── api-service/          — Java Spring Boot 3 (hexagonal)
 ├── agent-service/        — Python FastAPI + LangGraph
 ├── web/                  — Next.js 15 App Router
-├── docs/                 — superpowers/specs, superpowers/plans, runbooks, architecture
+├── docs/                 — superpowers/specs, superpowers/plans, runbooks
 ├── scripts/              — bootstrap-aws.sh, rotate-secrets.sh, seed-dev.sh
 └── README.md
 ```
 
-The implementation plan creates these directories incrementally — each task
-produces a working, testable change with its own commit.
+## Prerequisites
+
+Before running locally, you need accounts at:
+
+- **AWS** — IAM user with `AdministratorAccess`, CLI configured as profile `aws-docs-graph`
+- **Supabase** — Free project, connection strings saved
+- **Neo4j AuraDB Free** — Instance created, bolt URI + credentials saved
+- **Anthropic** — API key created, $5/mo dev cap set
+- **Vercel** — Account linked to this GitHub repo
+
+All secrets go into AWS Parameter Store (see `infra/`) — never in `.env` files committed to git.
+Copy `.env.example` to `.env` for local dev only.
 
 ## Getting started
 
