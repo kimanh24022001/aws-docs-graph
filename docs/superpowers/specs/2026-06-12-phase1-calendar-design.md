@@ -1,307 +1,432 @@
 # AWS Docs Graph — Phase 1 Implementation Calendar
 
-**Status:** Design approved, ready for implementation planning
+**Status:** Approved
 **Date:** 2026-06-12
-**Author:** Brainstorm session (user + Claude)
+**Pace:** Sprint — ~15–20 hrs/week (~35 hrs total)
+**Timeline:** 2026-06-16 → 2026-06-29 (2 weeks)
 **Depends on:** `2026-06-04-aws-docs-graph-design.md`
 
 ---
 
-## 1. Scope
+## Overview
 
-This document breaks the Phase 1 implementation into a 7-week calendar at a sprint pace (~15–20 hrs/week). Each week has a single primary focus, a set of concrete tasks, and a binary gate that must pass before week N+1 begins. The calendar targets all 12 validation criteria from the design doc section 14.
+Two weeks. Two clear halves.
 
-Start date: **week of 2026-06-16**.
-End date: **week of 2026-07-28** (gate closes ~2026-08-03).
+**Week 1** builds everything you can't see — infrastructure, data, ingestion, the agent brain.
+**Week 2** builds everything you can — the API surface, the UI, the graph, observability, and the final hardening that makes it production-grade.
+
+Each day has a focus. Each week ends with a gate that must pass before moving on.
 
 ---
 
-## 2. Decisions
+## Week 1 — The Foundation
+### *"Data in, pipeline running, nothing broken"*
+**2026-06-16 to 2026-06-22**
 
-| Topic | Choice | Rationale |
+```
+Mon  ░░░░░░░░  Accounts + Repo
+Tue  ████████  Local dev environment
+Wed  ████████  Terraform + AWS wiring
+Thu  ████████  Python ingestion pipeline
+Fri  ████████  Ingest to prod + CI green
+Sat  ░░░░░░░░  Buffer / overflow
+Sun  ─────────
+```
+
+---
+
+### Day 1 — Monday 16 Jun · Accounts + Repo
+
+**External accounts (do these first — some have email confirmation delays):**
+
+| Service | Action |
+|---|---|
+| AWS | Enable billing alerts · Create IAM user (least-privilege) · Enable MFA |
+| Supabase | Create free project · Note connection strings · Enable invite-only auth |
+| Neo4j AuraDB Free | Create instance · Download credentials bolt URI + password |
+| Anthropic | Create API key · Set $5/mo dev console hard cap |
+| Vercel | Create project · Link to GitHub repo (empty for now) |
+
+**Repo scaffold:**
+```
+aws-docs-graph/
+├── .github/workflows/     ci.yml  deploy-prod.yml
+├── infra/                 modules/  envs/prod/
+├── api-service/           (Java — scaffold only)
+├── agent-service/         (Python — scaffold only)
+├── web/                   (Next.js — scaffold only)
+├── docs/superpowers/      specs/  plans/
+├── scripts/               bootstrap-aws.sh  seed-dev.sh
+├── Makefile
+└── .env.example
+```
+
+Pre-commit hooks: `ruff` · `spotless` · `prettier` · `gitleaks` · `trivy fs`
+
+---
+
+### Day 2 — Tuesday 17 Jun · Local Dev Environment
+
+**Docker Compose** — Postgres 16 + Neo4j 5, persistent named volumes, health checks.
+
+**Flyway migrations V1–V6** (all Phase 1 tables from design doc §5):
+- `V1` — `app.users` · `app.organizations` · `app.org_memberships`
+- `V2` — `app.documents` + indexes
+- `V3` — `app.queries` · `app.query_citations` · `app.query_related_docs` + RLS
+- `V4` — `app.agent_runs` · `app.llm_calls` · `app.mcp_search_log` · `app.mcp_cache`
+- `V5` — `app.crawl_log` · `app.crawl_cursor` · `app.idempotency_keys`
+- `V6` — Trigger: auto-create personal org on user insert
+
+**Neo4j** — constraints + indexes (design doc §5.6).
+
+**`make dev`** — boots both DBs, runs migrations, verifies health, prints connection strings.
+
+> ✅ Gate check: `make dev` → both DBs green, all migrations applied.
+
+---
+
+### Day 3 — Wednesday 18 Jun · Terraform + AWS Wiring
+
+**Bootstrap script** (`scripts/bootstrap-aws.sh`):
+- S3 state bucket + DynamoDB lock table
+- Parameter Store SecureStrings placeholders for all secrets
+
+**Terraform `infra/`:**
+
+| Resource | Config |
+|---|---|
+| ECR | Two repos: `api-service` · `agent-service` |
+| Lambda (Java) | SnapStart · 512 MB · 30s timeout · CloudWatch log group 14d |
+| Lambda (Python) | Container · 2048 MB · 5 min timeout · reserved concurrency 5 · Function URL `AuthType=AWS_IAM` |
+| Lambda Authorizer | Validates Supabase JWT against JWKS · 300s cache |
+| API Gateway REST | Usage plan 10 req/s · 1000 req/day · CORS allow-list |
+| EventBridge | `cron(0 2 ? * MON *)` → ingest-cron Lambda |
+| IAM | Lambda exec roles · SigV4 invoke role (Java → Python) |
+| AWS Budgets | $10/mo · alerts at 50% / 80% / 100% |
+| Cost Anomaly Detection | $5 threshold |
+| SNS topic | Email subscription for all alarms |
+
+`terraform validate` + `tflint` pass.
+
+---
+
+### Day 4 — Thursday 19 Jun · Python Ingestion Pipeline
+
+**FastAPI project** (`agent-service/`):
+
+```
+agent-service/
+├── app/
+│   ├── main.py              FastAPI app + routes
+│   ├── ingest/
+│   │   ├── sitemap.py       sitemap walk · diff · 2000-URL cap · crawl_cursor
+│   │   ├── page.py          single-URL idempotent ingest (parse → Postgres → Neo4j)
+│   │   └── bootstrap.py     uncapped chained invocation
+│   ├── graph/
+│   │   └── co_returned.py   CO_RETURNED edge maintenance
+│   ├── db/
+│   │   ├── postgres.py      asyncpg connection pool
+│   │   └── neo4j.py         neo4j-driver session factory
+│   └── config.py            settings from Parameter Store
+├── tests/
+│   ├── unit/                parse logic · hash logic · Cypher generation
+│   └── integration/         Testcontainers Postgres + Neo4j
+├── Dockerfile
+└── requirements.txt
+```
+
+**Endpoints:**
+
+| Method | Path | Purpose |
 |---|---|---|
-| Pace | ~15–20 hrs/week (sprint) | User-stated preference |
-| Structure | Track-based, one primary track per week | Minimises context-switching; each week produces a deployable increment |
-| Dependency order | Foundation → Java → Ingestion → Agent → Frontend → Graph/Obs → Hardening | Each layer depends on the one below; no week starts until its gate passes |
-| Parallelism within a week | Allowed where no dependency exists | e.g. Terraform + app code in same week |
-| Setup tasks | Week 1 (accounts, tooling, local dev) | Must precede all code |
+| `GET` | `/internal/healthz` | Liveness |
+| `POST` | `/internal/ingest/page` | Single-URL idempotent ingest |
+| `POST` | `/internal/ingest/sitemap` | Sitemap walk · diff · capped |
+| `POST` | `/internal/ingest/bootstrap` | Uncapped initial fill |
+| `POST` | `/internal/graph/co-returned` | CO_RETURNED edge maintenance |
+
+**Ingest logic for one page:**
+1. HTTP GET url, respect 429 with backoff
+2. BeautifulSoup: title · service · guide · toc_path · links · prev/next · word_count
+3. `hash = sha256(title + sorted_links + toc_path)`
+4. Postgres `ON CONFLICT` upsert — update `last_changed_at` only if hash changed
+5. Neo4j `MERGE` node + `MERGE` LINKS_TO / PREV_NEXT edges (placeholder nodes allowed)
+6. Insert `crawl_log` row
+
+Tests: unit (parse logic, hash, Cypher), integration (Testcontainers, idempotency invariant via Hypothesis).
 
 ---
 
-## 3. Weekly calendar
+### Day 5 — Friday 20 Jun · Ingest to Prod + CI Green
 
-### Week 1 — Foundation (2026-06-16 to 2026-06-22)
-**Focus:** Zero-to-running-locally in <30 min on any machine.
+**Deploy Python to prod:**
+- Build container image → push to ECR
+- `terraform apply` — Python Lambda + EventBridge + IAM
+- Manually invoke `POST /internal/ingest/bootstrap` via AWS console
+- Verify: ≥500 rows in `app.documents` · ≥500 `:Document` nodes in Neo4j AuraDB
 
-**External account setup:**
-- AWS account: enable billing alerts, create IAM user with least-privilege, enable MFA
-- Supabase: create free project, note connection strings, enable email invite-only auth
-- Neo4j AuraDB Free: create instance, download credentials
-- Anthropic: create API key, set $5 dev console cap
-- Vercel: create project (empty, linked to repo)
+**GitHub Actions `ci.yml`** (parallel jobs):
+- `lint-python` — ruff
+- `test-python` — pytest + Testcontainers (Postgres + Neo4j)
+- `lint-java` — spotless (placeholder, no Java code yet)
+- `terraform-validate` — fmt + validate + tflint + checkov
+- `secret-scan` — gitleaks
+- `dependency-scan` — pip-audit + Trivy
 
-**Repo + tooling:**
-- Mono-repo scaffold: all top-level dirs per design doc section 9.1
-- `.github/workflows/` stubs (ci.yml, deploy-prod.yml skeletons)
-- `Makefile` with `dev`, `test`, `lint`, `migrate` targets
-- Pre-commit config: ruff, spotless, prettier, gitleaks, trivy fs
-- `.env.example` for all required env vars (no secrets in git)
-
-**Infrastructure foundation:**
-- Terraform: S3 state bucket + DynamoDB lock table (bootstrap script `scripts/bootstrap-aws.sh`)
-- Terraform: `infra/modules/` and `infra/envs/prod/` structure with provider config, tagging defaults
-- `terraform validate` + `tflint` pass in CI
-
-**Local dev:**
-- `docker-compose.yml`: Postgres 16 + Neo4j 5 with persistent named volumes
-- Flyway migrations V1–V6: all Phase 1 tables, indexes, RLS policies (from design doc section 5)
-- Neo4j constraints + indexes (from design doc section 5.6)
-- `make dev` boots both DBs, runs migrations, verifies health
-
-**Gate:** `git clone` → `make dev` → both DBs healthy, all migrations applied, pre-commit hooks pass. No AWS deployment yet.
+> ✅ **Week 1 Gate:** CI green on `main` · ≥500 docs in prod Postgres + Neo4j · `make dev` works · AWS Budget alarm confirmed active.
 
 ---
 
-### Week 2 — Java api-service skeleton + CI (2026-06-23 to 2026-06-29)
-**Focus:** Hexagonal skeleton, Lambda packaging, CI green, first prod deploy.
+## Week 2 — The Product
+### *"Ship it: API, agent, UI, graph, prod-hardened"*
+**2026-06-23 to 2026-06-29**
 
-**Java api-service:**
-- Spring Boot 3 project with hexagonal package structure (`domain/`, `application/`, `adapter/in/rest/`, `adapter/out/persistence/`, `adapter/out/agent/`, `adapter/out/graph/`, `infrastructure/`)
-- Lambda handler shim (aws-serverless-java-container or Spring Cloud Function)
-- SnapStart configuration
-- `GET /v1/healthz` — liveness endpoint
-- `GET /v1/me` — caller profile from JWT claims
-- Supabase JWKS validation in Lambda Authorizer (separate small Lambda)
-- ArchUnit rules: domain/application/adapter boundaries enforced
-- WireMock setup for Python service (used in integration tests)
-- Testcontainers: Postgres container for integration tests, Flyway migrates against it
-
-**CI pipeline (`ci.yml`):**
-- Parallel jobs: lint-java, test-java, lint-web (placeholder), terraform-validate, secret-scan (gitleaks), dependency-scan (pip-audit, npm audit, Trivy)
-- Build Docker image on `main`, push to ECR
-
-**Terraform (prod):**
-- ECR repository (Java image)
-- Lambda function (Java, SnapStart enabled)
-- API Gateway REST with Lambda Authorizer
-- IAM roles: Lambda exec role, Authorizer exec role
-- Parameter Store: placeholder SecureStrings for all secrets (values set manually)
-- CloudWatch log groups (14d retention)
-
-**Gate:** CI green on `main`; `POST /deploy` via manual `terraform apply`; `GET /v1/healthz` returns 200 in prod; `GET /v1/me` returns caller's userId from JWT.
+```
+Mon  ████████  Java api-service + LangGraph agent
+Tue  ████████  Query pipeline end-to-end
+Wed  ████████  Next.js frontend
+Thu  ████████  Graph atlas + observability
+Fri  ████████  Hardening: Cloudflare · deploy-prod · runbooks
+Sat  ░░░░░░░░  Buffer / final validation checklist
+Sun  ─────────
+```
 
 ---
 
-### Week 3 — Python agent-service + ingestion pipeline (2026-06-30 to 2026-07-06)
-**Focus:** Real documents flowing into Postgres + Neo4j.
+### Day 6 — Monday 23 Jun · Java api-service + LangGraph Agent
 
-**Python agent-service:**
-- FastAPI project structure (`agents/`, `adapters/`, `ingest/`, `graph/`)
-- Lambda container packaging (Dockerfile, ECR push)
-- `GET /internal/healthz`
-- `POST /internal/ingest/page` — single URL idempotent ingest (BeautifulSoup parse → Postgres upsert → Neo4j MERGE node + LINKS_TO/PREV_NEXT edges)
-- `POST /internal/ingest/sitemap` — sitemap walk, URL diff, 2000-URL/run cap, `crawl_cursor` checkpoint
-- `POST /internal/ingest/bootstrap` — uncapped chained Lambda invocations
-- `POST /internal/graph/co-returned` — read 24h mcp_search_log, compute co-occurrence, update CO_RETURNED edges with 30-day decay
+**Java api-service** (`api-service/`):
 
-**Testing:**
-- pytest unit tests: ingest page parsing, hash logic, Cypher MERGE generation
-- pytest integration tests: Testcontainers Postgres + Neo4j; happy path + idempotent re-run + gone-URL detection
-- Hypothesis property test: ingest idempotency invariant
+```
+api-service/src/main/java/com/awsdocs/
+├── domain/              Query · Document · User · value objects (no framework imports)
+├── application/         QueryService · GraphService · ports (interfaces)
+├── adapter/in/rest/     @RestController · DTOs · request validation
+├── adapter/out/persistence/   Postgres repos · Flyway migrations
+├── adapter/out/agent/   SigV4HttpClient → Python
+├── adapter/out/graph/   Neo4jReadClient (Cypher read-only)
+└── infrastructure/      Spring config · Lambda handler shim
+```
 
-**CI additions:**
-- lint-python, test-python jobs
+Endpoints scaffolded (implementations follow Day 7):
+`GET /v1/healthz` · `GET /v1/me` · `POST /v1/queries` · `GET /v1/queries/{id}` · `GET /v1/queries` · `GET /v1/graph/overview` · `GET /v1/graph/documents/{id}` · `GET /v1/graph/documents/{id}/neighbors` · `GET /v1/graph/search`
 
-**Terraform (prod):**
-- ECR repository (Python image)
-- Python Lambda (container, 2048MB, 5min timeout, reserved concurrency 5)
-- Function URL with `AuthType=AWS_IAM`
-- EventBridge rule: `cron(0 2 ? * MON *)` → ingest-cron Lambda → Python `/internal/ingest/sitemap`
-- ingest-cron Lambda (tiny invoker, IAM role to call Python Function URL)
+**Lambda Authorizer** — validate Supabase JWT against JWKS endpoint, inject `userId` + `email`, 300s cache.
 
-**Manual run:**
-- After deploy: `POST /internal/ingest/bootstrap` via AWS console or `scripts/seed-dev.sh`
-- Verify ≥500 documents in Postgres + ≥500 nodes in Neo4j
+**LangGraph agent** (`agent-service/app/agents/`):
 
-**Gate:** ≥500 AWS doc URLs in prod Postgres `app.documents` + ≥500 `:Document` nodes in Neo4j AuraDB.
+```
+agents/
+├── graph.py             LangGraph StateGraph definition
+├── state.py             AgentState TypedDict
+├── nodes/
+│   ├── plan.py          Haiku 4.5 → {keywords, expected_services, question_type}
+│   ├── mcp_search.py    parallel search_documentation · merge · top 8
+│   ├── graph_traverse.py  Cypher 1-2 hop · top 10
+│   ├── mcp_read.py      top 2 docs · 6000 char truncate
+│   ├── synthesize.py    Sonnet 4.6 · cached system prompt · {answer, citation_ranks}
+│   └── format.py        assemble canonical response shape
+└── prompts/
+    ├── plan.txt
+    └── synthesize.txt   (heavily cached — static system prompt)
+```
 
----
+Degraded modes: MCP down → graph-only · Neo4j down → citations-only · synthesis fail → navigation answer · token budget → partial with `truncated=true` · wall-clock → best-effort partial.
 
-### Week 4 — LangGraph agent + query pipeline (2026-07-07 to 2026-07-13)
-**Focus:** End-to-end question → answer with citations.
+Token budget: 50K/run. Wall-clock target: <20s, hard cap 25s.
 
-**Python: LangGraph agent:**
-- LangGraph linear state machine: `plan → mcp_search → graph_traverse → mcp_read → synthesize → format`
-- **plan node** (Haiku 4.5): question → `{keywords, expected_services, question_type}`; Pydantic validation; deterministic fallback
-- **mcp_search node**: parallel `search_documentation` per keyword group; merge + dedupe + re-rank; top 8; writes `mcp_search_log`, `mcp_cache`
-- **graph_traverse node**: Cypher 1–2 hop via `LINKS_TO | PREV_NEXT | CO_RETURNED`; top 10 distinct
-- **mcp_read node**: top 2 docs, skip on `navigation_only`, truncate to 6000 chars
-- **synthesize node** (Sonnet 4.6): heavily cached system prompt; `{answer, citation_ranks}`; 1 retry; navigation fallback
-- **format node**: assembles canonical response shape (Appendix A of design doc)
-- Per-run token budget: 50K; wall-clock target <20s, hard cap 25s
-- All 5 degraded mode responses (MCP down, Neo4j down, synthesis fail, token budget, wall clock)
-- MCP retry: exponential backoff + jitter, max 2 attempts; circuit breaker (5 failures → open 60s)
-- `POST /internal/agents/run` endpoint
-- Unit tests: each node mocked (Anthropic via fixtures, MCP via respx)
-
-**Java: query endpoints:**
-- `POST /v1/queries` — idempotency check, insert `app.queries` pending→running, SigV4 POST to Python, write `query_citations` + `query_related_docs` transactionally, return response
-- `GET /v1/queries/{id}` — fetch single query (RLS enforced)
-- `GET /v1/queries` — paginated history (RLS enforced)
-- Per-user $0.50/day LLM cost cap: check `sum(llm_calls.cost_usd)` for user today before dispatching
-- Integration tests: Testcontainers + WireMock Python stub; idempotency replay; RLS enforcement; cost cap enforcement
-
-**Gate:** `POST /v1/queries` with a real AWS question returns JSON with a non-empty `answer` and ≥1 `citations` entry in <30s in prod. Degraded mode tested: MCP mocked-down, graph-only answer returned correctly.
+Unit tests: each node individually mocked (Anthropic via fixtures, MCP via `respx`).
 
 ---
 
-### Week 5 — Frontend (2026-07-14 to 2026-07-20)
-**Focus:** Working UI end-to-end in the browser.
+### Day 7 — Tuesday 24 Jun · Query Pipeline End-to-End
 
-**Next.js 15 App Router (TypeScript):**
-- Project scaffold on Vercel hobby tier
-- Supabase Auth client: invite-only signup, email+password login, httpOnly cookie session, protected route middleware
-- TanStack Query: base client configured against `https://api.<domain>`, Authorization header from session
+**Java — `POST /v1/queries`** (full implementation):
+1. Idempotency check on `(user_id, idempotency_key, request_hash)`
+2. Insert `app.queries` `pending` → `running`
+3. Check per-user $0.50/day LLM cost cap (`sum(llm_calls.cost_usd)` for user today)
+4. SigV4-signed `POST /internal/agents/run` to Python (28s Java timeout)
+5. Transactional write: `query_citations` + `query_related_docs`; update `queries.status='succeeded'`
+6. Return canonical JSON response
 
-**Pages:**
-- `/` — landing / redirect to `/ask` if authenticated
-- `/login` — Supabase Auth UI
-- `/ask` — question input, answer display with inline `[n]` citation markers, citations panel (ranked list of doc URLs with snippets), related-docs panel (hop-count + edge-path displayed)
-- `/history` — paginated query history (title + date + status)
-- `/queries/[id]` — full query detail (answer + citations + related docs + metadata)
-- `/account` — display name, daily cost used today
+**Python — `POST /internal/agents/run`** (wire LangGraph):
+- Accepts `{query_id, user_id, org_id, question}`
+- Runs LangGraph state machine
+- Writes `agent_runs` + `llm_calls` + `mcp_search_log`
+- Returns `{answer, citations[], related_docs[], cost_breakdown, agent_run_id}`
 
-**UX details:**
-- Degraded mode banners (3 variants from design doc section 8.5)
-- Loading skeleton states
-- Error boundaries with user-friendly messages
+**Java — `GET /v1/queries/{id}`** + **`GET /v1/queries`** (paginated, RLS enforced).
 
-**Testing:**
-- Vitest + RTL unit tests on key components
-- Vitest + MSW integration tests: happy path + error states + degraded banners
-- CI: lint-web, test-web jobs
+**Integration tests:**
+- Java: Testcontainers Postgres · WireMock Python stub · idempotency replay · RLS enforcement (user A ≠ user B) · cost cap enforcement
+- Python: Testcontainers Postgres + Neo4j · real LangGraph · mock Anthropic + MCP · happy path · degraded modes
 
-**Gate:** A signed-in user can submit a question at `yourdomain.com/ask` and see an answer with citations and related docs rendered in the browser. History page shows previous queries. Degraded banner appears when backend simulates MCP-down.
+**CI additions:** `test-java` job with Testcontainers.
+
+> ✅ Mid-week check: `POST /v1/queries` with a real AWS question returns answer + ≥1 citation in <30s in prod.
 
 ---
 
-### Week 6 — Graph atlas + observability + cost guardrails (2026-07-21 to 2026-07-27)
-**Focus:** Graph visualizer live, dashboards wired, cost guardrails verified active.
+### Day 8 — Wednesday 25 Jun · Next.js Frontend
 
-**Java: graph endpoints:**
-- `GET /v1/graph/overview` — top 2000 nodes by degree centrality from Neo4j; 24h cached materialized view (refreshed by ingest cron or manual trigger); response: `{nodes[], edges[]}`
-- `GET /v1/graph/documents/{id}` — single document detail
-- `GET /v1/graph/documents/{id}/neighbors?hops=1` — Cypher 1-hop expansion, cap 200 nodes
-- `GET /v1/graph/search?q=...` — document title/URL substring search
+**Next.js 15 App Router** (`web/`):
 
-**Frontend: graph pages:**
-- `/graph` — `react-force-graph-2d` force-directed; color-by-service (deterministic color palette); click node → `/graph/[id]`; top 2000 nodes rendered
-- `/graph/[id]` — neighborhood view (1-hop); node detail panel (title, URL, service, word_count)
+```
+web/
+├── app/
+│   ├── layout.tsx            root layout · Supabase Auth provider
+│   ├── page.tsx              / → redirect to /ask if authed, else /login
+│   ├── login/page.tsx        Supabase Auth UI · email+password · invite-only
+│   ├── ask/page.tsx          question input · answer · citations · related-docs
+│   ├── history/page.tsx      paginated query list
+│   ├── queries/[id]/page.tsx full query detail
+│   ├── graph/page.tsx        force-directed atlas · react-force-graph-2d
+│   ├── graph/[id]/page.tsx   neighborhood view · node detail panel
+│   └── account/page.tsx      display name · daily cost used
+├── components/
+│   ├── QueryForm.tsx          question input + submit
+│   ├── AnswerPanel.tsx        answer with inline [n] citation markers
+│   ├── CitationsPanel.tsx     ranked citation list with snippets
+│   ├── RelatedDocsPanel.tsx   related docs with hop-count + edge-path
+│   ├── DegradedBanner.tsx     3 variants (MCP down · Neo4j down · synthesis fail)
+│   ├── GraphCanvas.tsx        react-force-graph-2d wrapper · color-by-service
+│   └── NodeDetailPanel.tsx    title · URL · service · word_count
+├── lib/
+│   ├── api.ts                 TanStack Query client · base URL · auth header
+│   └── supabase.ts            Supabase client (auth only, never data)
+└── middleware.ts              protected route guard
+```
 
-**Observability:**
-- CloudWatch EMF: all metrics from design doc section 9.6 emitted from both Lambdas
-- AWS X-Ray: gateway → Java → Python traces; trace ID propagated via SigV4 headers
-- CloudWatch Operations dashboard: query rate, p50/p99 latency, agent node durations, MCP health
-- CloudWatch Cost dashboard: daily LLM spend by model, MCP call volume, Lambda cost
+**Supabase Auth:** httpOnly cookie session · invite-only signup · protected route middleware.
 
-**Cost guardrails verification:**
-- AWS Budgets: $10/mo budget with email alerts at 50/80/100% — confirm active in console
-- AWS Cost Anomaly Detection: $5 threshold — confirm active
-- SNS alarms: all 7 alarms from design doc section 9.6 wired and confirmed in console (test one)
-- Outbound concurrency: `asyncio.Semaphore(5)` on LLM + MCP paths — integration test verifies
+**Graph viewer:** `react-force-graph-2d` · color palette keyed by `service` string · click node → `/graph/[id]` · top 2000 nodes from `GET /v1/graph/overview`.
 
-**Gate:** `/graph` renders ≥200 force-directed nodes color-coded by AWS service; click-through to `/graph/[id]` shows neighbors; Cost dashboard shows daily LLM spend metric; AWS Budget alarm confirmed active.
+**Degraded banners** (from design doc §8.5):
+- *"AWS docs search unavailable — showing related docs from our graph."*
+- *"Related-doc suggestions temporarily unavailable."*
+- *"Couldn't generate written answer; here are the most relevant pages."*
+
+Tests: Vitest + RTL unit · Vitest + MSW integration (happy path + error states + banners).
+CI addition: `lint-web` · `test-web` jobs.
 
 ---
 
-### Week 7 — Hardening sprint (2026-07-28 to 2026-08-03)
-**Focus:** All 12 phase-1 validation criteria met. Project is done.
+### Day 9 — Thursday 26 Jun · Graph Atlas + Observability
+
+**Java — graph endpoints:**
+
+| Endpoint | Detail |
+|---|---|
+| `GET /v1/graph/overview` | Top 2000 nodes by degree centrality · 24h materialized view cache · `{nodes[], edges[]}` |
+| `GET /v1/graph/documents/{id}` | Single document detail |
+| `GET /v1/graph/documents/{id}/neighbors?hops=1` | Cypher 1-hop · cap 200 nodes |
+| `GET /v1/graph/search?q=` | Title/URL substring search |
+
+**CloudWatch EMF metrics** (both Lambdas emit structured JSON):
+
+| Metric | Dimensions |
+|---|---|
+| `query_count` | status |
+| `query_duration_ms` | question_type |
+| `agent_node_duration_ms` | node |
+| `llm_cost_usd` | model · source |
+| `mcp_call_count` | tool · status |
+| `mcp_call_latency_ms` | tool |
+| `ingest_pages_processed` | outcome |
+| `daily_cost_per_user_usd` | user_id |
+
+**AWS X-Ray** — gateway → Java → Python traces, trace ID propagated via SigV4 headers.
+
+**CloudWatch dashboards:**
+- **Operations** — query rate · p50/p99 latency · agent node durations · MCP health
+- **Cost** — daily LLM spend by model · MCP call volume · Lambda cost
+
+**SNS alarms:**
+- Daily LLM cost > $1
+- Query failure rate > 10% over 15 min
+- MCP error rate > 25%
+- Lambda p99 > 25s
+- Reserved concurrency > 80%
+- Budget 80%
+- Anomaly Detection trigger
+
+---
+
+### Day 10 — Friday 27 Jun · Hardening: Cloudflare · deploy-prod · Runbooks
 
 **Cloudflare + custom domain:**
-- Register domain (or use existing), add to Cloudflare
-- DNS: `yourdomain.com` → Vercel; `api.yourdomain.com` → API Gateway
-- AWS ACM cert for `api.yourdomain.com`; API Gateway custom domain
+- DNS: `yourdomain.com` → Vercel · `api.yourdomain.com` → API Gateway
+- AWS ACM cert for `api.yourdomain.com`
 - Cloudflare "Full (strict)" SSL mode
 - Verify TLS end-to-end for both hostnames
 
-**Deploy-prod pipeline (`deploy-prod.yml`):**
-- Full pipeline: CI checks → terraform plan → manual approval gate (GitHub Environments) → terraform apply → Flyway migrate → Neo4j migrate → smoke tests
-- Smoke test 1: `GET /v1/healthz` → 200
-- Smoke test 2: canary query → non-empty answer, ≥1 citation, cost <$0.01
-- Rollback procedure: re-run deploy-prod with previous SHA — verify it works
+**`deploy-prod.yml`** full pipeline:
+1. Re-run all CI checks
+2. `terraform plan -out=tfplan` · display plan summary
+3. **Manual approval gate** (GitHub Environments protection)
+4. `terraform apply`
+5. Flyway migrate (Postgres prod)
+6. Neo4j migrations (constraints + indexes)
+7. Smoke test: `GET /v1/healthz` → 200
+8. Smoke test: canary query → non-empty answer · ≥1 citation · cost <$0.01
+9. Notify on failure
 
-**Security verification:**
-- RLS integration test: create user A + user B; user A cannot see user B's queries via `GET /v1/queries` or `GET /v1/queries/{id}` — test passes in CI
-- ArchUnit rules passing in CI (already done week 2, re-verify)
+**Runbooks** (each verified by actually doing the procedure):
+- `docs/runbooks/deploy.md` — step-by-step prod deploy
+- `docs/runbooks/rollback.md` — re-deploy prior SHA, verify smoke tests pass
+- `docs/runbooks/rotate-secrets.md` — rotate Anthropic key · Postgres passwords · Neo4j password
 
-**Cost regression script:**
-- `tests/fixtures/questions.yaml`: 20 representative questions across all `question_type` values
-- `scripts/cost-regression.sh`: runs all 20, computes total cost, alerts if >25% drift vs baseline
-- Run once and record baseline
-
-**Documentation:**
-- `docs/runbooks/deploy.md` — step-by-step prod deploy procedure
-- `docs/runbooks/rollback.md` — rollback to previous SHA
-- `docs/runbooks/rotate-secrets.md` — rotate Anthropic key, Postgres passwords, Neo4j password
-- `README.md` — updated with real getting-started instructions, first-query-in-30-min flow
-
-**Final validation checklist (design doc section 14):**
-1. [ ] Invite-only signup + login works
-2. [ ] `/ask` returns answer with citations + related docs in <30s
-3. [ ] `/graph` renders ≥200 nodes with color-by-service
-4. [ ] Node drill-down shows 1-hop neighbors
-5. [ ] ≥500 documents in Postgres + Neo4j (already done week 3)
-6. [ ] CI green on `main`; deploy-prod runs end-to-end
-7. [ ] CloudWatch dashboards show query rate, latency, daily LLM cost
-8. [ ] AWS Budget at $10/mo with alarms verified active
-9. [ ] RLS test: user A cannot read user B's queries
-10. [ ] ArchUnit rules pass; hexagonal boundaries clean
-11. [ ] README + 3 runbooks exist and are accurate
-12. [ ] Cloudflare + custom domain attached
-
-**Gate:** All 12 criteria checked off. Phase 1 is complete.
+**README** — updated with real getting-started instructions. New laptop → first query in ~30 min.
 
 ---
 
-## 4. Summary timeline
+### Saturday 28 Jun · Final Validation Checklist
 
-| Week | Dates | Primary focus | Gate |
+All 12 criteria from design doc §14 — check each one:
+
+- [ ] 1. Invite-only signup + email login works
+- [ ] 2. `/ask` returns answer + citations + related docs in <30s
+- [ ] 3. `/graph` renders ≥200 nodes with color-by-service
+- [ ] 4. Node drill-down shows 1-hop neighbors
+- [ ] 5. ≥500 documents in Postgres + Neo4j (from Week 1)
+- [ ] 6. CI green on `main` · deploy-prod runs end-to-end
+- [ ] 7. CloudWatch dashboards show query rate · latency · daily LLM cost
+- [ ] 8. AWS Budget $10/mo alarms verified active
+- [ ] 9. RLS test: user A cannot read user B's queries (integration test passes)
+- [ ] 10. ArchUnit rules pass · hexagonal boundaries clean
+- [ ] 11. README + 3 runbooks exist and are accurate
+- [ ] 12. Cloudflare + custom domain attached
+
+> ✅ **Week 2 Gate / Phase 1 Complete:** All 12 criteria checked off.
+
+---
+
+## Summary
+
+| Day | Date | Focus | Done when… |
 |---|---|---|---|
-| 1 | 2026-06-16 to 2026-06-22 | Foundation: accounts, repo, local dev, migrations | `make dev` works on clean checkout |
-| 2 | 2026-06-23 to 2026-06-29 | Java skeleton + CI + first prod deploy | healthz 200 in prod, CI green |
-| 3 | 2026-06-30 to 2026-07-06 | Python + ingestion pipeline | ≥500 docs in prod Postgres + Neo4j |
-| 4 | 2026-07-07 to 2026-07-13 | LangGraph agent + query API | real answer with citations in <30s |
-| 5 | 2026-07-14 to 2026-07-20 | Next.js frontend | browser end-to-end working |
-| 6 | 2026-07-21 to 2026-07-27 | Graph atlas + observability + guardrails | graph renders, dashboards live |
-| 7 | 2026-07-28 to 2026-08-03 | Hardening: Cloudflare, deploy-prod, runbooks | all 12 validation criteria pass |
+| 1 | Mon Jun 16 | Accounts + repo scaffold | All accounts created · repo bootstrapped |
+| 2 | Tue Jun 17 | Local dev + migrations | `make dev` → both DBs green |
+| 3 | Wed Jun 18 | Terraform + AWS wiring | `terraform validate` passes · resources defined |
+| 4 | Thu Jun 19 | Python ingestion pipeline | Unit + integration tests green |
+| 5 | Fri Jun 20 | Ingest to prod + CI | ≥500 docs in prod · CI green on `main` |
+| — | — | — | **WEEK 1 GATE** |
+| 6 | Mon Jun 23 | Java skeleton + LangGraph agent | Both projects scaffold · agent unit tests green |
+| 7 | Tue Jun 24 | Query pipeline end-to-end | Real answer with citations in <30s in prod |
+| 8 | Wed Jun 25 | Next.js frontend | Browser end-to-end working |
+| 9 | Thu Jun 26 | Graph atlas + observability | Graph renders · dashboards live · alarms wired |
+| 10 | Fri Jun 27 | Hardening + runbooks | deploy-prod pipeline verified · runbooks written |
+| 11 | Sat Jun 28 | Final validation | All 12 criteria ✅ — **Phase 1 complete** |
 
 ---
 
-## 5. Dependency graph
+## What's been cut to fit 2 weeks
 
-```
-Week 1 (Foundation)
-  └── Week 2 (Java + CI)
-        └── Week 3 (Python + Ingestion) ──┐
-              └── Week 4 (Agent + Query)   │
-                    └── Week 5 (Frontend)  │
-                          └── Week 6 (Graph + Obs) ← needs Week 3 data
-                                └── Week 7 (Hardening)
-```
+Deferred beyond Phase 1 (in addition to everything already in design doc §11):
 
-Week 6 also depends on Week 3 data (needs ≥500 docs for graph atlas to render meaningfully).
-
----
-
-## 6. Out of scope
-
-Everything in Phase 2 deferred items (design doc section 11). No task in this calendar touches:
-- Personal browsing graph
-- Open multi-tenancy
-- Streaming / async query path
-- Conversational threading
-- Concept extraction
-- E2E (Playwright) tests
-- WAF / Cloudflare rate-limit rules
-- Auto-rollback / canary deploys
-- MFA / SSO
+| Cut item | Why | When |
+|---|---|---|
+| Cost regression script (20-question fixture) | Nice-to-have, not blocking | Add post-launch |
+| ArchUnit strict rules | Basic package guard in CI is sufficient for now | Strengthen in Phase 2 |
+| WireMock offline Java dev | Adds complexity; real Python runs locally | Add if offline dev becomes a pain point |
+| `navigation_only` mcp_read skip | Minor optimisation | Phase 2 agent refinement |
