@@ -1,0 +1,11 @@
+name: Deploy to prod
+
+on:
+  workflow_dispatch:
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "deploy-prod stub — implemented in Week 2 Day 10"
