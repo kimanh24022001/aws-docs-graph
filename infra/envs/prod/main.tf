@@ -51,19 +51,6 @@ resource "aws_sns_topic_subscription" "email" {
   endpoint  = var.alert_email
 }
 
-resource "aws_sns_topic_policy" "alerts" {
-  arn = aws_sns_topic.alerts.arn
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect    = "Allow"
-      Principal = { Service = ["ce.amazonaws.com", "budgets.amazonaws.com"] }
-      Action    = "SNS:Publish"
-      Resource  = aws_sns_topic.alerts.arn
-    }]
-  })
-}
-
 # AWS Budget
 resource "aws_budgets_budget" "monthly" {
   name         = "${local.name_prefix}-monthly"
@@ -92,30 +79,6 @@ resource "aws_budgets_budget" "monthly" {
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
     subscriber_email_addresses = [var.alert_email]
-  }
-}
-
-# Cost Anomaly Detection
-resource "aws_ce_anomaly_monitor" "this" {
-  name              = "${local.name_prefix}-anomaly"
-  monitor_type      = "DIMENSIONAL"
-  monitor_dimension = "SERVICE"
-}
-
-resource "aws_ce_anomaly_subscription" "this" {
-  name             = "${local.name_prefix}-anomaly-sub"
-  frequency        = "DAILY"
-  monitor_arn_list = [aws_ce_anomaly_monitor.this.arn]
-  subscriber {
-    type    = "SNS"
-    address = aws_sns_topic.alerts.arn
-  }
-  threshold_expression {
-    dimension {
-      key           = "ANOMALY_TOTAL_IMPACT_ABSOLUTE"
-      values        = ["5"]
-      match_options = ["GREATER_THAN_OR_EQUAL"]
-    }
   }
 }
 
