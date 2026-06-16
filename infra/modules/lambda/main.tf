@@ -28,7 +28,7 @@ resource "aws_iam_role_policy" "ssm_read" {
     Statement = [{
       Effect   = "Allow"
       Action   = ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"]
-      Resource = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/aws-docs-graph/prod/*"
+      Resource = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/adg/prod/*"
     }]
   })
 }
@@ -46,18 +46,6 @@ resource "aws_lambda_function" "this" {
   role          = aws_iam_role.exec.arn
   timeout       = var.timeout
   memory_size   = var.memory_size
-
-  dynamic "snap_start" {
-    for_each = var.snap_start ? [1] : []
-    content {
-      apply_on = "PublishedVersions"
-    }
-  }
-
-  dynamic "image_config" {
-    for_each = var.package_type == "Image" ? [1] : []
-    content {}
-  }
 
   package_type = var.package_type
 

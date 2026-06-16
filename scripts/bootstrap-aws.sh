@@ -11,10 +11,18 @@ echo "Creating Terraform state bucket: $BUCKET"
 if aws s3api head-bucket --bucket "$BUCKET" --profile "$PROFILE" 2>/dev/null; then
   echo "  Bucket already exists — skipping"
 else
-  aws s3api create-bucket \
-    --bucket "$BUCKET" \
-    --region "$REGION" \
-    --profile "$PROFILE"
+  if [ "$REGION" = "us-east-1" ]; then
+    aws s3api create-bucket \
+      --bucket "$BUCKET" \
+      --region "$REGION" \
+      --profile "$PROFILE"
+  else
+    aws s3api create-bucket \
+      --bucket "$BUCKET" \
+      --region "$REGION" \
+      --create-bucket-configuration LocationConstraint="$REGION" \
+      --profile "$PROFILE"
+  fi
 
   aws s3api put-bucket-versioning \
     --bucket "$BUCKET" \

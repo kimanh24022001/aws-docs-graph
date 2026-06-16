@@ -1,16 +1,31 @@
 const { createRemoteJWKSet, jwtVerify } = require('jose');
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const JWKS = createRemoteJWKSet(new URL(`${SUPABASE_URL}/auth/v1/.well-known/jwks.json`));
+let JWKS;
+
+function getJWKS() {
+  if (!JWKS) {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    if (!supabaseUrl) {
+      console.error('SUPABASE_URL environment variable is not set');
+      return null;
+    }
+    JWKS = createRemoteJWKSet(new URL(`${supabaseUrl}/auth/v1/.well-known/jwks.json`));
+  }
+  return JWKS;
+}
 
 exports.handler = async (event) => {
   const token = event.authorizationToken?.replace('Bearer ', '');
   if (!token) return denyAllPolicy();
 
+  const jwks = getJWKS();
+  if (!jwks) return denyAllPolicy();
+
   try {
-    const { payload } = await jwtVerify(token, JWKS, { algorithms: ['RS256', 'HS256'] });
+    const { payload } = await jwtVerify(token, jwks, { algorithms: ['RS256'] });
     return allowPolicy(event.methodArn, payload.sub, payload.email);
-  } catch {
+  } catch (err) {
+    console.error('JWT verification failed:', err.code || err.message);
     return denyAllPolicy();
   }
 };

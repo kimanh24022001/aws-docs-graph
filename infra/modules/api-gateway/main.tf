@@ -17,19 +17,6 @@ resource "aws_iam_role_policy_attachment" "authorizer_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-resource "aws_iam_role_policy" "authorizer_ssm" {
-  name = "ssm-read"
-  role = aws_iam_role.authorizer_exec.id
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["ssm:GetParameter"]
-      Resource = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/aws-docs-graph/prod/supabase-url"
-    }]
-  })
-}
-
 data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
 

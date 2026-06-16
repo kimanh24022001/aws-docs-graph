@@ -12,11 +12,6 @@ variable "memory_size" {
   default = 512
 }
 
-variable "snap_start" {
-  type    = bool
-  default = false
-}
-
 variable "package_type" {
   type    = string
   default = "Zip"
