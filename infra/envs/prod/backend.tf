@@ -9,10 +9,10 @@ terraform {
   }
 
   backend "s3" {
-    bucket         = "aws-docs-graph-tfstate-123456789012" # replace with your account ID
-    key            = "prod/terraform.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "aws-docs-graph-tfstate-lock"
-    encrypt        = true
+    bucket       = "aws-docs-graph-tfstate-882321773334"
+    key          = "prod/terraform.tfstate"
+    region       = "us-east-1"
+    use_lockfile = true
+    encrypt      = true
   }
 }
