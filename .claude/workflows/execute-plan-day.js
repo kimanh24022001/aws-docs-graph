@@ -7,6 +7,7 @@ export const meta = {
     { title: 'Execute', detail: 'Run independent tasks in parallel, sequential tasks in order' },
     { title: 'Review', detail: 'Spec compliance + code quality review per task' },
     { title: 'Verify', detail: 'Run gate checks for the day' },
+    { title: 'Summary', detail: 'List all commits and files changed today' },
   ],
 }
 
@@ -232,6 +233,43 @@ Working directory: /Users/I753472/Documents/development/aws-docs-graph`,
   { label: 'gate-check', schema: GATE_SCHEMA }
 )
 
+// ── Phase 5: Changed files ────────────────────────────────────────────────────
+phase('Summary')
+
+const GIT_SCHEMA = {
+  type: 'object',
+  properties: {
+    commits: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          sha:     { type: 'string' },
+          message: { type: 'string' },
+          files:   { type: 'array', items: { type: 'string' } },
+        },
+        required: ['sha', 'message', 'files'],
+      },
+    },
+    totalFilesChanged: { type: 'number' },
+  },
+  required: ['commits', 'totalFilesChanged'],
+}
+
+const gitSummary = await agent(
+  `Run git log to find all commits made today for the aws-docs-graph project,
+   and for each commit list the files changed.
+
+   Commands to run:
+   1. git log --oneline --since="$(date +%Y-%m-%d) 00:00" to get today's commits
+   2. For each commit SHA: git show --stat --name-only <sha> to get files changed
+
+   Working directory: /Users/I753472/Documents/development/aws-docs-graph
+
+   Return each commit with its sha (short), message, and list of files changed.`,
+  { label: 'git-summary', schema: GIT_SCHEMA }
+)
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 const blocked   = reviewedResults.filter(r => r.result.status === 'BLOCKED' || r.result.status === 'NEEDS_CONTEXT')
 const specFails = reviewedResults.filter(r => !r.specReview?.compliant)
@@ -244,6 +282,11 @@ log(`❌ Spec issues:   ${specFails.length}`)
 log(`⚠️  Quality flags: ${qualFails.length}`)
 log(`⛔ Blocked:       ${blocked.length}`)
 log(`🚪 Gate: ${gateResult.passed ? '✅ PASSED' : '❌ FAILED'}`)
+log(`📁 Files changed: ${gitSummary.totalFilesChanged} across ${gitSummary.commits.length} commits`)
+gitSummary.commits.forEach(c => {
+  log(`   ${c.sha} ${c.message}`)
+  c.files.forEach(f => log(`     · ${f}`))
+})
 
 return {
   day: dayLabel,
@@ -254,4 +297,6 @@ return {
   blocked:       blocked.map(r => ({ task: r.task.name, status: r.result.status })),
   gateResults:   gateResult.results,
   gatePassed:    gateResult.passed,
+  commits:       gitSummary.commits,
+  filesChanged:  gitSummary.totalFilesChanged,
 }
