@@ -53,11 +53,11 @@ def parse_page(url: str, html: str) -> ParsedPage:
         }
     )
 
-    # prev / next
+    # prev / next — handle both <link rel="prev" href="..."> and <div rel="prev"><a href="...">
     prev_tag = soup.find(attrs={"rel": "prev"})
     next_tag = soup.find(attrs={"rel": "next"})
-    prev_url = prev_tag.find("a")["href"] if prev_tag and prev_tag.find("a") else None
-    next_url = next_tag.find("a")["href"] if next_tag and next_tag.find("a") else None
+    prev_url = prev_tag.get("href") or (prev_tag.find("a") or {}).get("href") if prev_tag else None
+    next_url = next_tag.get("href") or (next_tag.find("a") or {}).get("href") if next_tag else None
 
     # word count (rough)
     text = main.get_text(separator=" ")
@@ -87,7 +87,9 @@ async def upsert_document(
     url_hash = hashlib.sha256(parsed.url.encode()).hexdigest()
     now = datetime.now(UTC)
 
-    row = await pool.fetchrow("SELECT id, hash FROM app.documents WHERE url = $1", parsed.url)
+    row = await pool.fetchrow(
+        "SELECT id, hash, status FROM app.documents WHERE url = $1", parsed.url
+    )
 
     if row is None:
         doc_id = uuid.uuid4()
@@ -112,11 +114,15 @@ async def upsert_document(
     else:
         doc_id = row["id"]
         changed = row["hash"] != parsed.hash
+        # Always reset status to 'active' — handles URLs that were previously 'gone'
+        # and have reappeared in the sitemap.
         await pool.execute(
             """
             UPDATE app.documents
             SET title=$2, service=$3, guide=$4, word_count=$5, hash=$6,
-                last_crawled_at=$7, last_changed_at=CASE WHEN $8 THEN $7 ELSE last_changed_at END
+                status='active',
+                last_crawled_at=$7,
+                last_changed_at=CASE WHEN $8 THEN $7 ELSE last_changed_at END
             WHERE id=$1
             """,
             doc_id,
@@ -204,24 +210,33 @@ async def ingest_page(url: str, run_id: str | None = None):
     pool = await get_pool()
 
     async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
-        resp = await client.get(url, headers={"User-Agent": "aws-docs-graph/1.0"})
-        resp.raise_for_status()
+        result = await ingest_one_page(url, rid, pool, client=client)
 
-    parsed = parse_page(url, resp.text)
-    doc_id, outcome = await upsert_document(pool, parsed, rid)
-    await merge_neo4j(doc_id, parsed)
-
-    return {"url": url, "document_id": str(doc_id), "outcome": outcome}
+    return result
 
 
-async def ingest_one_page(url: str, run_id: uuid.UUID, pool) -> dict:
-    """Internal helper — parse + upsert + Neo4j. Used by sitemap.py."""
+async def ingest_one_page(
+    url: str,
+    run_id: uuid.UUID,
+    pool,
+    client=None,
+) -> dict:
+    """Internal helper — parse + upsert + Neo4j. Used by sitemap.py and bootstrap.py.
+
+    Pass a shared httpx.AsyncClient via `client` when calling in bulk to reuse connections.
+    """
     import httpx
 
-    async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
+    if client is not None:
         resp = await client.get(url, headers={"User-Agent": "aws-docs-graph/1.0"})
         resp.raise_for_status()
-    parsed = parse_page(url, resp.text)
+        parsed = parse_page(url, resp.text)
+    else:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30) as c:
+            resp = await c.get(url, headers={"User-Agent": "aws-docs-graph/1.0"})
+            resp.raise_for_status()
+            parsed = parse_page(url, resp.text)
+
     doc_id, outcome = await upsert_document(pool, parsed, run_id)
     await merge_neo4j(doc_id, parsed)
     return {"url": url, "document_id": str(doc_id), "outcome": outcome}

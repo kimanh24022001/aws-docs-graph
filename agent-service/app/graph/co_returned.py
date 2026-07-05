@@ -9,8 +9,8 @@ from app.db.postgres import get_pool
 
 router = APIRouter()
 
-DECAY_DAYS = 30
-MIN_WEIGHT = 0.05
+DECAY_FACTOR = 0.9  # exponential decay applied to existing edge weight each observation
+MIN_WEIGHT = 0.05  # edges below this weight are pruned
 
 
 @router.post("/internal/graph/co-returned", status_code=202)
@@ -29,7 +29,7 @@ async def update_co_returned():
         since,
     )
 
-    # Build co-occurrence counts
+    # Build co-occurrence counts — url_a < url_b to ensure canonical direction
     pair_counts: dict[tuple[str, str], int] = defaultdict(int)
     for row in rows:
         try:
@@ -44,14 +44,14 @@ async def update_co_returned():
     if not pair_counts:
         return {"updated": 0}
 
-    # Update Neo4j CO_RETURNED edges
+    # Update Neo4j CO_RETURNED edges (directed: a -> b, where a = min URL lexicographically)
     updated = 0
     async with neo4j_session() as s:
         for (url_a, url_b), count in pair_counts.items():
             await s.run(
                 """
                 MATCH (a:Document {url: $url_a}), (b:Document {url: $url_b})
-                MERGE (a)-[r:CO_RETURNED]-(b)
+                MERGE (a)-[r:CO_RETURNED]->(b)
                 ON CREATE SET r.weight = $weight, r.observation_count = $count,
                               r.last_observed_at = $now
                 ON MATCH SET  r.weight = r.weight * $decay + $weight,
@@ -65,7 +65,7 @@ async def update_co_returned():
                 url_b=url_b,
                 weight=min(count / 10.0, 1.0),
                 count=count,
-                decay=0.9,
+                decay=DECAY_FACTOR,
                 min_weight=MIN_WEIGHT,
                 now=datetime.now(UTC).isoformat(),
             )
