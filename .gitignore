@@ -81,6 +81,9 @@ dist/
 node_modules/
 .next/
 out/
+# Re-include Java hexagonal port/out source directories excluded by the broad out/ rule above
+!**/port/out/
+!**/port/out/**
 .pnpm-store/
 *.tsbuildinfo
 next-env.d.ts
