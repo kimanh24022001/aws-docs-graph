@@ -2,8 +2,6 @@ package com.awsdocs.adapter.out.persistence;
 
 import com.awsdocs.application.port.out.QueryRepository;
 import com.awsdocs.domain.model.QueryResult;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
@@ -19,11 +17,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class QueryRepositoryImpl implements QueryRepository {
 
   private final JdbcTemplate jdbc;
-  private final ObjectMapper objectMapper;
 
-  public QueryRepositoryImpl(JdbcTemplate jdbc, ObjectMapper objectMapper) {
+  public QueryRepositoryImpl(JdbcTemplate jdbc) {
     this.jdbc = jdbc;
-    this.objectMapper = objectMapper;
   }
 
   @Override
@@ -48,15 +44,15 @@ public class QueryRepositoryImpl implements QueryRepository {
 
   @Override
   @Transactional
-  public void markRunning(UUID queryId) {
-    jdbc.update(
-        "update app.queries set status = 'running' where id = ?", queryId);
+  public void markRunning(UUID queryId, String userId) {
+    setRlsUserId(userId);
+    jdbc.update("update app.queries set status = 'running' where id = ?", queryId);
   }
 
   @Override
   @Transactional
-  public void markSucceeded(UUID queryId, QueryResult result) {
-    String answerText = result.answer();
+  public void markSucceeded(UUID queryId, String userId, QueryResult result) {
+    setRlsUserId(userId);
     jdbc.update(
         """
         update app.queries
@@ -65,13 +61,14 @@ public class QueryRepositoryImpl implements QueryRepository {
                completed_at = now()
          where id = ?
         """,
-        answerText,
+        result.answer(),
         queryId);
   }
 
   @Override
   @Transactional
-  public void markFailed(UUID queryId, String errorCode, String errorMessage) {
+  public void markFailed(UUID queryId, String userId, String errorCode, String errorMessage) {
+    setRlsUserId(userId);
     jdbc.update(
         """
         update app.queries
@@ -128,15 +125,18 @@ public class QueryRepositoryImpl implements QueryRepository {
   }
 
   private void setRlsUserId(String userId) {
-    jdbc.execute("set local \"app.current_user_id\" = '" + userId + "'");
+    // Use parameterised set_config() to prevent SQL injection
+    jdbc.execute(
+        (java.sql.Connection conn) -> {
+          try (var ps = conn.prepareStatement("select set_config('app.current_user_id', ?, false)")) {
+            ps.setString(1, userId);
+            ps.execute();
+          }
+          return null;
+        });
   }
 
   private QueryResult mapToQueryResult(ResultSet rs) throws SQLException {
-    return new QueryResult(
-        rs.getString("id"),
-        rs.getString("answer"),
-        List.of(),
-        List.of(),
-        Map.of());
+    return new QueryResult(rs.getString("id"), rs.getString("answer"), List.of(), List.of(), Map.of());
   }
 }

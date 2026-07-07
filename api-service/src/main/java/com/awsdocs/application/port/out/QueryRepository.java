@@ -7,11 +7,11 @@ import java.util.UUID;
 public interface QueryRepository {
   UUID createPending(String userId, String orgId, String question, String idempotencyKey);
 
-  void markRunning(UUID queryId);
+  void markRunning(UUID queryId, String userId);
 
-  void markSucceeded(UUID queryId, QueryResult result);
+  void markSucceeded(UUID queryId, String userId, QueryResult result);
 
-  void markFailed(UUID queryId, String errorCode, String errorMessage);
+  void markFailed(UUID queryId, String userId, String errorCode, String errorMessage);
 
   Optional<QueryResult> findByIdempotencyKey(String userId, String idempotencyKey);
 
