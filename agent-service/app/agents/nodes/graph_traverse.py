@@ -7,11 +7,12 @@ WHERE d.url IN $urls
 CALL {
   WITH d
   MATCH (d)-[r:LINKS_TO|PREV_NEXT|CO_RETURNED]-(neighbor:Document)
-  RETURN neighbor, r
+  RETURN neighbor, type(r) AS edge_type
   LIMIT 5
 }
 RETURN DISTINCT neighbor.id AS id, neighbor.url AS url,
-       neighbor.title AS title, neighbor.service AS service
+       neighbor.title AS title, neighbor.service AS service,
+       collect(DISTINCT edge_type) AS edge_types
 LIMIT 10
 """
 
@@ -24,11 +25,16 @@ async def graph_traverse_node(state: AgentState) -> AgentState:
             result = await s.run(TRAVERSE_QUERY, urls=urls)
             records = await result.data()
             graph_docs = [
-                {"id": r["id"], "url": r["url"], "title": r["title"], "service": r["service"]}
+                {
+                    "id": r["id"],
+                    "url": r["url"],
+                    "title": r["title"],
+                    "service": r["service"],
+                    "edge_types": r.get("edge_types", []),
+                }
                 for r in records
             ]
     except Exception:
-        graph_docs = []
         return {
             **state,
             "graph_docs": [],

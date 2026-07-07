@@ -1,4 +1,3 @@
-import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter
@@ -51,7 +50,8 @@ async def run_agent(req: AgentRunRequest):
             "total_tokens": result["total_tokens"],
             "total_cost_usd": result["total_cost_usd"],
         },
-        "agent_run_id": str(uuid.uuid4()),
+        "agent_run_id": req.query_id,
+        "query_id": req.query_id,
         "degraded": result["degraded"],
         "degraded_reason": result["degraded_reason"],
     }

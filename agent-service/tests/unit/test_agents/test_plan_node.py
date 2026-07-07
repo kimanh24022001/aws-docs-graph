@@ -1,4 +1,6 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from app.agents.nodes.plan import _extract_keywords_fallback, plan_node
 
@@ -29,25 +31,43 @@ def make_state(**kwargs):
     }
 
 
-def test_plan_node_extracts_keywords():
+@pytest.mark.asyncio
+async def test_plan_node_extracts_keywords():
     mock_msg = MagicMock()
     payload = (
         '{"keywords": ["S3", "bucket", "policy"], '
         '"expected_services": ["S3"], "question_type": "factual"}'
     )
     mock_msg.content = [MagicMock(text=payload)]
-    with patch("app.agents.nodes.plan._get_client") as mock_client:
-        mock_client.return_value.messages.create.return_value = mock_msg
-        result = plan_node(make_state())
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(return_value=mock_msg)
+    with patch("app.agents.nodes.plan._get_client", return_value=mock_client):
+        result = await plan_node(make_state())
     assert "S3" in result["keywords"]
     assert result["question_type"] == "factual"
 
 
-def test_plan_node_falls_back_on_error():
-    with patch("app.agents.nodes.plan._get_client") as mock_client:
-        mock_client.return_value.messages.create.side_effect = Exception("API error")
-        result = plan_node(make_state())
+@pytest.mark.asyncio
+async def test_plan_node_falls_back_on_error():
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(side_effect=Exception("API error"))
+    with patch("app.agents.nodes.plan._get_client", return_value=mock_client):
+        result = await plan_node(make_state())
     assert isinstance(result["keywords"], list)
+    assert len(result["keywords"]) > 0
+    assert result["question_type"] == "factual"
+
+
+@pytest.mark.asyncio
+async def test_plan_node_handles_invalid_question_type():
+    mock_msg = MagicMock()
+    mock_msg.content = [
+        MagicMock(text='{"keywords": ["S3"], "expected_services": [], "question_type": "invalid"}')
+    ]
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(return_value=mock_msg)
+    with patch("app.agents.nodes.plan._get_client", return_value=mock_client):
+        result = await plan_node(make_state())
     assert result["question_type"] == "factual"
 
 

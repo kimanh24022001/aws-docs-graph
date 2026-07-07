@@ -28,7 +28,7 @@ def format_node(state: AgentState) -> AgentState:
             "url": d.get("url", ""),
             "service": d.get("service", ""),
             "hop_count": 1,
-            "edge_path": ["LINKS_TO"],
+            "edge_path": d.get("edge_types", []),
         }
         for d in state.get("graph_docs", [])
     ]

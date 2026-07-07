@@ -6,9 +6,9 @@ MCP_ENDPOINT = "https://knowledge-mcp.global.api.aws"
 MAX_RESULTS = 8
 
 
-def _search_one(client: httpx.Client, keyword: str) -> list[dict]:
+async def _search_one(client: httpx.AsyncClient, keyword: str) -> list[dict]:
     try:
-        resp = client.post(
+        resp = await client.post(
             f"{MCP_ENDPOINT}/search_documentation",
             json={"query": keyword, "max_results": 4},
             timeout=10,
@@ -19,13 +19,12 @@ def _search_one(client: httpx.Client, keyword: str) -> list[dict]:
         return []
 
 
-def mcp_search_node(state: AgentState) -> AgentState:
+async def mcp_search_node(state: AgentState) -> AgentState:
     results = []
     try:
-        with httpx.Client() as client:
+        async with httpx.AsyncClient() as client:
             for kw in state["keywords"][:3]:
-                results.extend(_search_one(client, kw))
-        # Deduplicate by URL, keep top MAX_RESULTS
+                results.extend(await _search_one(client, kw))
         seen = set()
         deduped = []
         for r in results:
