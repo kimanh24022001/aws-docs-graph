@@ -39,8 +39,7 @@ public class QueryService implements SubmitQueryUseCase {
 
     try {
       var result =
-          agentServicePort.runAgent(
-              queryId, request.userId(), request.orgId(), request.question());
+          agentServicePort.runAgent(queryId, request.userId(), request.orgId(), request.question());
       queryRepository.markSucceeded(queryId, result);
       return result;
     } catch (Exception e) {
