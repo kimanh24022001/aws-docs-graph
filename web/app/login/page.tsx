@@ -16,16 +16,19 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     const supabase = createBrowserClient();
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    setLoading(false);
-    if (authError) {
-      setError(authError.message);
-      return;
+    try {
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (authError) {
+        setError(authError.message);
+        return;
+      }
+      router.push("/ask");
+    } finally {
+      setLoading(false);
     }
-    router.push("/ask");
   }
 
   return (

@@ -1,6 +1,5 @@
 interface Props {
   answer: string | null;
-  citationCount: number;
 }
 
 // Splits answer text on [n] markers and renders them as superscript anchor links.
@@ -25,7 +24,7 @@ function renderWithCitations(text: string) {
   });
 }
 
-export function AnswerPanel({ answer, citationCount: _citationCount }: Props) {
+export function AnswerPanel({ answer }: Props) {
   if (answer === null) {
     return (
       <p style={{ color: "#666", fontStyle: "italic" }}>

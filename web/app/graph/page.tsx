@@ -22,7 +22,7 @@ export default function GraphPage() {
 
   function handleNodeClick(node: GraphNode) {
     // Day 9: navigate to /graph/[id] for drill-down
-    console.log("Node clicked:", node.id);
+    void node;
   }
 
   return (
