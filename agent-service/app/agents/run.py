@@ -4,6 +4,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.agents.graph import graph
+from app.metrics import emit_metric, timed_metric
 
 router = APIRouter()
 
@@ -40,7 +41,16 @@ async def run_agent(req: AgentRunRequest):
         "started_at": datetime.now(UTC).isoformat(),
     }
 
-    result = await graph.ainvoke(initial_state)
+    with timed_metric("query_duration_ms", {"question_type": initial_state["question_type"]}):
+        result = await graph.ainvoke(initial_state)
+
+    emit_metric(
+        "query_count",
+        1,
+        "Count",
+        {"status": "succeeded" if not result["degraded"] else "degraded"},
+    )
+    emit_metric("llm_cost_usd", result["total_cost_usd"], "None", {"source": "agent"})
 
     return {
         "answer": result["answer"],
