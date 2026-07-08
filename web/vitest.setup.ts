@@ -13,9 +13,7 @@ const {
   Request: nativeRequest,
   Response: nativeResponse,
   Headers: nativeHeaders,
-} =
-  // @ts-expect-error — undici is a Node built-in in Node 18+
-  await import("undici");
+} = await import("undici");
 
 Object.assign(globalThis, {
   fetch: nativeFetch,
