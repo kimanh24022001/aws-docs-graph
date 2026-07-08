@@ -8,7 +8,6 @@ def emit_metric(metric_name: str, value: float, unit: str, dimensions: dict) -> 
     payload = {
         "_aws": {
             "Timestamp": int(time.time() * 1000),
-            "Namespace": "AwsDocsGraph",
             "CloudWatchMetrics": [
                 {
                     "Namespace": "AwsDocsGraph",

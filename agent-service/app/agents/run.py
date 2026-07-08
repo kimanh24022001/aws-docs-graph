@@ -1,10 +1,11 @@
+import time
 from datetime import UTC, datetime
 
 from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.agents.graph import graph
-from app.metrics import emit_metric, timed_metric
+from app.metrics import emit_metric
 
 router = APIRouter()
 
@@ -41,9 +42,17 @@ async def run_agent(req: AgentRunRequest):
         "started_at": datetime.now(UTC).isoformat(),
     }
 
-    with timed_metric("query_duration_ms", {"question_type": initial_state["question_type"]}):
-        result = await graph.ainvoke(initial_state)
+    start = time.perf_counter()
+    result = await graph.ainvoke(initial_state)
+    elapsed_ms = (time.perf_counter() - start) * 1000
 
+    # Emit metrics using result values (question_type resolved after plan node runs)
+    emit_metric(
+        "query_duration_ms",
+        elapsed_ms,
+        "Milliseconds",
+        {"question_type": result["question_type"]},
+    )
     emit_metric(
         "query_count",
         1,
