@@ -271,10 +271,11 @@ const gitSummary = await agent(
 )
 
 // ── Summary ───────────────────────────────────────────────────────────────────
-const blocked   = reviewedResults.filter(r => r.result.status === 'BLOCKED' || r.result.status === 'NEEDS_CONTEXT')
-const specFails = reviewedResults.filter(r => !r.specReview?.compliant)
-const qualFails = reviewedResults.filter(r => r.specReview?.compliant && !r.qualityApproved)
-const passed    = reviewedResults.filter(r => r.specReview?.compliant && r.qualityApproved)
+const validResults = reviewedResults.filter(r => r != null && r.result != null)
+const blocked   = validResults.filter(r => r.result.status === 'BLOCKED' || r.result.status === 'NEEDS_CONTEXT')
+const specFails = validResults.filter(r => !r.specReview?.compliant)
+const qualFails = validResults.filter(r => r.specReview?.compliant && !r.qualityApproved)
+const passed    = validResults.filter(r => r.specReview?.compliant && r.qualityApproved)
 
 log(`\n━━━ ${dayLabel} Summary ━━━`)
 log(`✅ Tasks passed:  ${passed.length}/${autoTasks.length}`)
