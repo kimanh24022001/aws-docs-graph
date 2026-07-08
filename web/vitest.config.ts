@@ -13,6 +13,12 @@ export default defineConfig({
       NEXT_PUBLIC_SUPABASE_URL: "http://localhost:54321",
       NEXT_PUBLIC_SUPABASE_ANON_KEY: "test-anon-key",
     },
+    alias: {
+      "react-force-graph-2d": path.resolve(
+        __dirname,
+        "tests/mocks/react-force-graph-2d.tsx",
+      ),
+    },
   },
   resolve: {
     alias: {
