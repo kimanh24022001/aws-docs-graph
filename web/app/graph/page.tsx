@@ -1,16 +1,18 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { GraphCanvas } from "@/components/GraphCanvas";
 import { useGraphOverview } from "@/lib/api";
 import type { GraphNode } from "@/lib/types";
 
 export default function GraphPage() {
+  const router = useRouter();
   const { data, isLoading, isError } = useGraphOverview();
 
   if (isLoading)
     return (
       <main style={{ padding: 32 }}>
-        <p>Loading graph…</p>
+        <p>Loading graph...</p>
       </main>
     );
   if (isError)
@@ -21,8 +23,7 @@ export default function GraphPage() {
     );
 
   function handleNodeClick(node: GraphNode) {
-    // Day 9: navigate to /graph/[id] for drill-down
-    void node;
+    router.push(`/graph/${node.id}`);
   }
 
   return (
@@ -30,7 +31,7 @@ export default function GraphPage() {
       <div style={{ padding: "16px 24px", borderBottom: "1px solid #eee" }}>
         <h1 style={{ fontSize: 22, margin: 0 }}>AWS Docs Graph</h1>
         <p style={{ color: "#888", fontSize: 14, margin: "4px 0 0" }}>
-          {data?.nodes.length ?? 0} documents · click a node to explore
+          {data?.nodes.length ?? 0} documents &middot; click a node to explore
         </p>
       </div>
       {data && (

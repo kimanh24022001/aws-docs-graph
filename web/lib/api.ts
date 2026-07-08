@@ -6,6 +6,8 @@ import type {
   QueryHistoryResponse,
   MeResponse,
   GraphOverviewResponse,
+  DocumentResponse,
+  DocumentNeighborsResponse,
 } from "./types";
 
 export const queryClient = new QueryClient({
@@ -94,4 +96,22 @@ export function useGraphOverview() {
     queryFn: () => apiFetch<GraphOverviewResponse>("/v1/graph/overview"),
     staleTime: 24 * 60 * 60 * 1000, // 24h — matches server cache
   });
+}
+
+// ---- Plain fetch helpers (used in graph pages) ----
+
+export async function fetchGraphOverview(): Promise<GraphOverviewResponse> {
+  return apiFetch<GraphOverviewResponse>("/v1/graph/overview");
+}
+
+export async function fetchDocument(id: string): Promise<DocumentResponse> {
+  return apiFetch<DocumentResponse>(`/v1/graph/documents/${id}`);
+}
+
+export async function fetchDocumentNeighbors(
+  id: string,
+): Promise<DocumentNeighborsResponse> {
+  return apiFetch<DocumentNeighborsResponse>(
+    `/v1/graph/documents/${id}/neighbors`,
+  );
 }

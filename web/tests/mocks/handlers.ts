@@ -4,6 +4,8 @@ import {
   FIXTURE_QUERY_HISTORY,
   FIXTURE_ME,
   FIXTURE_GRAPH_OVERVIEW,
+  FIXTURE_DOCUMENT,
+  FIXTURE_DOCUMENT_NEIGHBORS,
 } from "./fixtures";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
@@ -29,4 +31,18 @@ export const handlers = [
   http.get(`${API_BASE}/v1/graph/overview`, () =>
     HttpResponse.json(FIXTURE_GRAPH_OVERVIEW),
   ),
+
+  http.get(`${API_BASE}/v1/graph/documents/:id`, ({ params }) => {
+    if (params.id === FIXTURE_DOCUMENT.id) {
+      return HttpResponse.json(FIXTURE_DOCUMENT);
+    }
+    return HttpResponse.json({ error: "not found" }, { status: 404 });
+  }),
+
+  http.get(`${API_BASE}/v1/graph/documents/:id/neighbors`, ({ params }) => {
+    if (params.id === FIXTURE_DOCUMENT.id) {
+      return HttpResponse.json(FIXTURE_DOCUMENT_NEIGHBORS);
+    }
+    return HttpResponse.json([]);
+  }),
 ];

@@ -3,6 +3,8 @@ import type {
   QueryHistoryResponse,
   MeResponse,
   GraphOverviewResponse,
+  DocumentResponse,
+  DocumentNeighborsResponse,
 } from "@/lib/types";
 
 export const FIXTURE_QUERY_RESPONSE: QueryResponse = {
@@ -112,3 +114,20 @@ export const FIXTURE_GRAPH_OVERVIEW: GraphOverviewResponse = {
   ],
   edges: [{ source: "doc_01", target: "doc_02", type: "LINKS_TO" }],
 };
+
+export const FIXTURE_DOCUMENT: DocumentResponse = {
+  id: "doc_01",
+  url: "https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-using-tags.html",
+  title: "Tagging Amazon ECS resources",
+  service: "ECS",
+  wordCount: 1200,
+};
+
+export const FIXTURE_DOCUMENT_NEIGHBORS: DocumentNeighborsResponse = [
+  {
+    id: "doc_02",
+    url: "https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/ce-what-is.html",
+    title: "AWS Cost Explorer",
+    service: "Billing",
+  },
+];

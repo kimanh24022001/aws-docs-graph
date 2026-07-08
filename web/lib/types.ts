@@ -64,3 +64,13 @@ export interface GraphOverviewResponse {
   nodes: GraphNode[];
   edges: GraphEdge[];
 }
+
+export interface DocumentResponse {
+  id: string;
+  url: string;
+  title: string | null;
+  service: string | null;
+  wordCount: number | null;
+}
+
+export type DocumentNeighborsResponse = GraphNode[];
