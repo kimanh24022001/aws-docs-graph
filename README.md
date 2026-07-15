@@ -30,12 +30,14 @@ backend system end to end:
 
 ## Status
 
-**Phase 1 — implementation in progress (Week 1 of 2).**
+**Phase 1 — complete.**
 
 - Design doc: [`docs/superpowers/specs/2026-06-04-aws-docs-graph-design.md`](docs/superpowers/specs/2026-06-04-aws-docs-graph-design.md)
 - Calendar: [`docs/superpowers/specs/2026-06-12-phase1-calendar-design.md`](docs/superpowers/specs/2026-06-12-phase1-calendar-design.md)
 - Implementation plans: [`docs/superpowers/plans/`](docs/superpowers/plans/)
-- Runbooks (deploy / rollback / rotate-secrets): in `docs/runbooks/` once each is exercised
+- Runbooks: [`docs/runbooks/`](docs/runbooks/)
+
+All 12 phase-1 validation criteria are met (see design doc §14).
 
 ## Cost ceiling
 
@@ -94,16 +96,50 @@ Copy `.env.example` to `.env` for local dev only.
 
 ## Getting started
 
-Phase 1 hasn't been built yet. Once it is, the local-development loop is:
+### Local development (new laptop → first query in ~30 minutes)
+
+**Prerequisites:** AWS CLI configured as profile `aws-docs-graph`, Docker Desktop running, Node 20+, Java 21, Python 3.12.
 
 ```bash
+# 1. Copy env template and fill in your local values
+cp .env.example .env
+# Edit .env — set ANTHROPIC_API_KEY, SUPABASE_URL, NEO4J_URI, NEO4J_PASSWORD
+
+# 2. Start local Postgres + Neo4j, run all migrations
 make dev
+
+# 3. Start the Python agent service (in a new terminal)
+cd agent-service
+pip install -r requirements.txt
+uvicorn app.main:app --port 8001 --reload
+
+# 4. Start the Java api service (in a new terminal)
+cd api-service
+mvn spring-boot:run
+
+# 5. Start the Next.js frontend (in a new terminal)
+cd web
+npm ci && npm run dev
 ```
 
-which boots a Dockerised Postgres + Neo4j, runs migrations, starts both
-backends, starts the Next.js frontend, and stubs the Python service from
-Java's perspective with WireMock. New laptop → first running query in ~30
-minutes.
+Open `http://localhost:3000`. Log in with a Supabase test user. Ask a question at `/ask`.
+
+### Running tests
+
+```bash
+# Python
+cd agent-service && pytest tests/ -v
+
+# Java
+cd api-service && mvn test
+
+# Web
+cd web && npm run test
+```
+
+### Deploy to production
+
+See [`docs/runbooks/deploy.md`](docs/runbooks/deploy.md).
 
 ## License
 
