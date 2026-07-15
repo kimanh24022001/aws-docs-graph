@@ -22,7 +22,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: pip install -r agent-service/requirements.txt -r agent-service/requirements-dev.txt
-      - run: pytest agent-service/tests/unit/ -v -p no:asyncio --ignore=agent-service/tests/conftest.py
+      - run: pytest tests/unit/ -v
         working-directory: agent-service
 
   lint-java:
