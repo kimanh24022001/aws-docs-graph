@@ -59,8 +59,7 @@ public class GraphController {
   }
 
   @GetMapping("/search")
-  public List<Map<String, Object>> search(
-      @RequestParam @Size(min = 1, max = 200) String q) {
+  public List<Map<String, Object>> search(@RequestParam @Size(min = 1, max = 200) String q) {
     return graphRepository.search(q, 20);
   }
 }

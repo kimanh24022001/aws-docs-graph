@@ -2,10 +2,91 @@ name: Deploy to prod
 
 on:
   workflow_dispatch:
+    inputs:
+      sha:
+        description: "Git SHA to deploy (defaults to HEAD)"
+        required: false
+        default: ""
 
 jobs:
-  placeholder:
+  deploy:
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - uses: actions/checkout@v4
-      - run: echo "deploy-prod stub — implemented in Week 2 Day 10"
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+
+      - uses: actions/setup-java@v4
+        with: { java-version: "21", distribution: "temurin" }
+
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "1.8.0" }
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Terraform plan
+        run: |
+          cd infra/envs/prod
+          terraform init
+          terraform plan -out=tfplan
+
+      - name: Terraform apply
+        run: cd infra/envs/prod && terraform apply -auto-approve tfplan
+
+      - name: Flyway migrate
+        run: |
+          docker run --rm \
+            -v "$(pwd)/infra/migrations/postgres:/flyway/sql" \
+            flyway/flyway:10 \
+            -url="jdbc:postgresql://aws-1-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require" \
+            -user="${{ secrets.SUPABASE_DB_USER }}" \
+            -password="${{ secrets.SUPABASE_DB_PASSWORD }}" \
+            -schemas=app \
+            migrate
+
+      - name: Neo4j migrate
+        run: |
+          docker run --rm --platform linux/amd64 \
+            -v "$(pwd)/infra/migrations/neo4j:/migrations" \
+            neo4j:5 cypher-shell \
+            -a "${{ secrets.NEO4J_URI }}" \
+            -u "${{ secrets.NEO4J_USERNAME }}" \
+            -p "${{ secrets.NEO4J_PASSWORD }}" \
+            --file /migrations/V1__constraints.cypher || true
+
+      - name: Smoke test — healthz
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "${{ secrets.API_URL }}/v1/healthz")
+          if [ "$STATUS" != "200" ]; then
+            echo "healthz failed: HTTP $STATUS"
+            exit 1
+          fi
+          echo "healthz: OK"
+
+      - name: Smoke test — canary query
+        run: |
+          RESPONSE=$(curl -s -X POST "${{ secrets.API_URL }}/v1/queries" \
+            -H "Authorization: Bearer ${{ secrets.CANARY_JWT }}" \
+            -H "Content-Type: application/json" \
+            -d '{"question":"What is Amazon S3?","idempotencyKey":"ci-canary-1"}')
+          echo "$RESPONSE" | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          assert d.get('answer'), 'answer is empty'
+          assert len(d.get('citations', [])) >= 1, 'no citations'
+          print('canary query: OK')
+          "
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          aws sns publish \
+            --topic-arn "${{ secrets.SNS_ALERTS_ARN }}" \
+            --message "deploy-prod FAILED for SHA ${{ github.sha }}" \
+            --subject "Deploy failure" || true

@@ -27,7 +27,7 @@ class TestEmitMetric:
         captured = capsys.readouterr()
         payload = json.loads(captured.out.strip())
         aws = payload["_aws"]
-        assert aws["Namespace"] == "AwsDocsGraph"
+        assert "CloudWatchMetrics" in aws
         assert isinstance(aws["Timestamp"], int)
         assert aws["Timestamp"] > 0
 
@@ -97,4 +97,5 @@ class TestTimedMetric:
             pass
         captured = capsys.readouterr()
         payload = json.loads(captured.out.strip())
-        assert payload["_aws"]["Namespace"] == "AwsDocsGraph"
+        namespace = payload["_aws"]["CloudWatchMetrics"][0]["Namespace"]
+        assert namespace == "AwsDocsGraph"

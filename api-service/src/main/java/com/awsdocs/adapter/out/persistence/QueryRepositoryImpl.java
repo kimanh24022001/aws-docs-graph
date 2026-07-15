@@ -128,7 +128,8 @@ public class QueryRepositoryImpl implements QueryRepository {
     // Use parameterised set_config() to prevent SQL injection
     jdbc.execute(
         (java.sql.Connection conn) -> {
-          try (var ps = conn.prepareStatement("select set_config('app.current_user_id', ?, false)")) {
+          try (var ps =
+              conn.prepareStatement("select set_config('app.current_user_id', ?, false)")) {
             ps.setString(1, userId);
             ps.execute();
           }
@@ -137,6 +138,7 @@ public class QueryRepositoryImpl implements QueryRepository {
   }
 
   private QueryResult mapToQueryResult(ResultSet rs) throws SQLException {
-    return new QueryResult(rs.getString("id"), rs.getString("answer"), List.of(), List.of(), Map.of());
+    return new QueryResult(
+        rs.getString("id"), rs.getString("answer"), List.of(), List.of(), Map.of());
   }
 }

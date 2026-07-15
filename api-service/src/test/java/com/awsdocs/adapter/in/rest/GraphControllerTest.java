@@ -31,8 +31,7 @@ class GraphControllerTest {
                     "url", "https://docs.aws.amazon.com/s3",
                     "service", "S3",
                     "degree", 3,
-                    "edges",
-                        List.of(Map.of("id", "doc2", "type", "REFERENCES")))));
+                    "edges", List.of(Map.of("id", "doc2", "type", "REFERENCES")))));
 
     mockMvc
         .perform(get("/v1/graph/overview"))
@@ -81,9 +80,7 @@ class GraphControllerTest {
   void get_neighbors_caps_hops_at_two() throws Exception {
     when(graphRepository.getNeighbors(eq("doc1"), eq(2), eq(200))).thenReturn(List.of());
 
-    mockMvc
-        .perform(get("/v1/graph/documents/doc1/neighbors?hops=5"))
-        .andExpect(status().isOk());
+    mockMvc.perform(get("/v1/graph/documents/doc1/neighbors?hops=5")).andExpect(status().isOk());
   }
 
   @Test
