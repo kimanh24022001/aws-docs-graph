@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 from fastapi import APIRouter
 
 from app.db.postgres import get_pool
-from app.ingest.page import ingest_one_page
+from app.ingest.page import ingest_one_page, is_english_url
 
 router = APIRouter()
 
@@ -34,7 +34,7 @@ async def fetch_all_sitemap_urls(client: httpx.AsyncClient) -> set[str]:
             r = await client.get(sm_url)
             r.raise_for_status()
             sm_soup = BeautifulSoup(r.text, "lxml-xml")
-            all_urls.update(loc.text for loc in sm_soup.find_all("loc"))
+            all_urls.update(loc.text for loc in sm_soup.find_all("loc") if is_english_url(loc.text))
         except Exception:
             pass  # skip broken sub-sitemaps
 

@@ -31,7 +31,7 @@ def test_parse_extracts_service_from_url():
     result = parse_page(
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use.html", AWS_SAMPLE_HTML
     )
-    assert result.service == "IAM"
+    assert result.service == "iam"
 
 
 def test_parse_extracts_guide_from_url():

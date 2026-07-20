@@ -16,6 +16,47 @@ router = APIRouter()
 AWS_DOCS_PREFIX = "https://docs.aws.amazon.com/"
 SERVICE_RE = re.compile(r"https://docs\.aws\.amazon\.com/([^/]+)/")
 
+# Locale segments to skip — non-English docs
+LOCALE_RE = re.compile(
+    r"^(af_za|ar_ae|bg_bg|cs_cz|da_dk|de_de|el_gr|es_es|es_la|fi_fi|fr_ca|fr_fr"
+    r"|he_il|hu_hu|id_id|it_it|ja_jp|ko_kr|ms_my|nl_nl|no_no|pl_pl|pt_br|pt_pt"
+    r"|ro_ro|ru_ru|sk_sk|sl_si|sv_se|th_th|tr_tr|uk_ua|vi_vn|zh_cn|zh_tw)$",
+    re.IGNORECASE,
+)
+
+# Normalize common AWS service URL segments → canonical lowercase name
+_SERVICE_ALIASES = {
+    "amazons3": "s3",
+    "amazonec2": "ec2",
+    "amazonecs": "ecs",
+    "amazonrds": "rds",
+    "amazondynamodb": "dynamodb",
+    "amazonsns": "sns",
+    "awssimplequeueservice": "sqs",
+    "amazoncloudwatch": "cloudwatch",
+    "amazonvpc": "vpc",
+    "awscloudformation": "cloudformation",
+    "amazonroute53": "route53",
+    "amazonelasticache": "elasticache",
+    "amazonredshift": "redshift",
+    "amazonkinesis": "kinesis",
+    "amazoncognito": "cognito",
+    "awssecretsmanager": "secretsmanager",
+    "amazonapigateway": "apigateway",
+}
+
+
+def _normalize_service(raw: str) -> str:
+    lower = raw.lower()
+    return _SERVICE_ALIASES.get(lower, lower)
+
+
+def is_english_url(url: str) -> bool:
+    """Return False for non-English AWS docs URLs like /ja_jp/, /ko_kr/, etc."""
+    path = url.replace(AWS_DOCS_PREFIX, "")
+    first_segment = path.split("/")[0]
+    return not LOCALE_RE.match(first_segment)
+
 
 @dataclass
 class ParsedPage:
@@ -37,11 +78,13 @@ def parse_page(url: str, html: str) -> ParsedPage:
     raw_title = soup.title.string if soup.title else None
     title = raw_title.split(" - AWS ")[0].strip() if raw_title else None
 
-    # Service + guide from URL
-    service_match = SERVICE_RE.match(url)
-    service = service_match.group(1).upper() if service_match else None
+    # Service + guide from URL — skip locale segment if present
     url_parts = url.replace(AWS_DOCS_PREFIX, "").split("/")
-    guide = url_parts[2] if len(url_parts) > 2 else None
+    # If first segment is a locale (e.g. ja_jp), skip it
+    start = 1 if LOCALE_RE.match(url_parts[0]) else 0
+    raw_service = url_parts[start] if len(url_parts) > start else None
+    service = _normalize_service(raw_service) if raw_service else None
+    guide = url_parts[start + 2] if len(url_parts) > start + 2 else None
 
     # AWS-only links in main content
     main = soup.find(id="main-content") or soup.body or soup
