@@ -6,6 +6,7 @@ from mangum import Mangum
 from app.agents.run import router as agents_router
 from app.db.neo4j import close_driver
 from app.db.postgres import close_pool
+from app.graph.clustering import router as clustering_router
 from app.graph.co_returned import router as co_returned_router
 from app.ingest.bootstrap import router as ingest_bootstrap_router
 from app.ingest.page import router as ingest_page_router
@@ -25,6 +26,7 @@ app.include_router(ingest_page_router)
 app.include_router(ingest_sitemap_router)
 app.include_router(ingest_bootstrap_router)
 app.include_router(co_returned_router)
+app.include_router(clustering_router)
 app.include_router(agents_router)
 
 
