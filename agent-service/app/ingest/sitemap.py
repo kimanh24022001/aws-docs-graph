@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import uuid
 
@@ -28,16 +29,22 @@ async def fetch_all_sitemap_urls(client: httpx.AsyncClient) -> set[str]:
     soup = BeautifulSoup(resp.text, "lxml-xml")
     sub_sitemaps = [loc.text for loc in soup.find_all("loc")]
 
-    all_urls: set[str] = set()
-    for sm_url in sub_sitemaps:
-        try:
-            r = await client.get(sm_url)
-            r.raise_for_status()
-            sm_soup = BeautifulSoup(r.text, "lxml-xml")
-            all_urls.update(loc.text for loc in sm_soup.find_all("loc") if is_english_url(loc.text))
-        except Exception:
-            pass  # skip broken sub-sitemaps
+    sem = asyncio.Semaphore(20)  # fetch 20 sub-sitemaps concurrently
 
+    async def fetch_one(sm_url: str) -> set[str]:
+        async with sem:
+            try:
+                r = await client.get(sm_url)
+                r.raise_for_status()
+                sm_soup = BeautifulSoup(r.text, "lxml-xml")
+                return {loc.text for loc in sm_soup.find_all("loc") if is_english_url(loc.text)}
+            except Exception:
+                return set()
+
+    results = await asyncio.gather(*[fetch_one(u) for u in sub_sitemaps])
+    all_urls: set[str] = set()
+    for r in results:
+        all_urls.update(r)
     return all_urls
 
 
