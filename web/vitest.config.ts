@@ -18,6 +18,7 @@ export default defineConfig({
         __dirname,
         "tests/mocks/react-force-graph-2d.tsx",
       ),
+      "next/dynamic": path.resolve(__dirname, "tests/mocks/next-dynamic.tsx"),
     },
   },
   resolve: {

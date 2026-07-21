@@ -5,6 +5,7 @@ import type {
   GraphOverviewResponse,
   DocumentResponse,
   DocumentNeighborsResponse,
+  GalaxyCluster,
 } from "@/lib/types";
 
 export const FIXTURE_QUERY_RESPONSE: QueryResponse = {
@@ -131,3 +132,15 @@ export const FIXTURE_DOCUMENT_NEIGHBORS: DocumentNeighborsResponse = [
     service: "Billing",
   },
 ];
+
+export const FIXTURE_CLUSTERS: { clusters: GalaxyCluster[] } = {
+  clusters: [
+    {
+      id: "cluster_01",
+      label: "Cost Management",
+      nodeCount: 2,
+      services: ["ECS", "Billing"],
+      centroidId: "doc_01",
+    },
+  ],
+};

@@ -8,6 +8,8 @@ import type {
   GraphOverviewResponse,
   DocumentResponse,
   DocumentNeighborsResponse,
+  GalaxyCluster,
+  GalaxyFocusResponse,
 } from "./types";
 
 export const queryClient = new QueryClient({
@@ -31,8 +33,12 @@ async function getAuthHeader(): Promise<string> {
   }
 }
 
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const auth = await getAuthHeader();
+async function apiFetch<T>(
+  path: string,
+  init?: RequestInit,
+  skipAuth = false,
+): Promise<T> {
+  const auth = skipAuth ? "" : await getAuthHeader();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(init?.headers as Record<string, string>),
@@ -93,19 +99,24 @@ export function useMe() {
 export function useGraphOverview() {
   return useQuery({
     queryKey: ["graph", "overview"],
-    queryFn: () => apiFetch<GraphOverviewResponse>("/v1/graph/overview"),
-    staleTime: 24 * 60 * 60 * 1000, // 24h — matches server cache
+    queryFn: () =>
+      apiFetch<GraphOverviewResponse>("/v1/graph/overview", undefined, true),
+    staleTime: 24 * 60 * 60 * 1000,
   });
 }
 
 // ---- Plain fetch helpers (used in graph pages) ----
 
 export async function fetchGraphOverview(): Promise<GraphOverviewResponse> {
-  return apiFetch<GraphOverviewResponse>("/v1/graph/overview");
+  return apiFetch<GraphOverviewResponse>("/v1/graph/overview", undefined, true);
 }
 
 export async function fetchDocument(id: string): Promise<DocumentResponse> {
-  return apiFetch<DocumentResponse>(`/v1/graph/documents/${id}`);
+  return apiFetch<DocumentResponse>(
+    `/v1/graph/documents/${id}`,
+    undefined,
+    true,
+  );
 }
 
 export async function fetchDocumentNeighbors(
@@ -114,4 +125,28 @@ export async function fetchDocumentNeighbors(
   return apiFetch<DocumentNeighborsResponse>(
     `/v1/graph/documents/${id}/neighbors`,
   );
+}
+
+export async function fetchClusters() {
+  return apiFetch<{ clusters: GalaxyCluster[] }>(
+    "/v1/graph/clusters",
+    undefined,
+    true,
+  );
+}
+
+export async function fetchFocusSubgraph(nodeId: string, limit = 50) {
+  return apiFetch<GalaxyFocusResponse>(
+    `/v1/graph/focus/${nodeId}?limit=${limit}`,
+    undefined,
+    true,
+  );
+}
+
+export function useClusters() {
+  return useQuery({
+    queryKey: ["galaxy", "clusters"],
+    queryFn: fetchClusters,
+    staleTime: 60 * 60 * 1000, // 1h
+  });
 }

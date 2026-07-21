@@ -74,3 +74,25 @@ export interface DocumentResponse {
 }
 
 export type DocumentNeighborsResponse = GraphNode[];
+
+export interface GalaxyCluster {
+  id: string;
+  label: string;
+  nodeCount: number;
+  services: string[];
+  centroidId: string;
+}
+
+export interface GalaxyFocusNode {
+  id: string;
+  label: string;
+  service: string;
+  gravityScore: number;
+  distance: number;
+}
+
+export interface GalaxyFocusResponse {
+  center: { id: string; label: string; service: string };
+  nodes: GalaxyFocusNode[];
+  edges: Array<{ source: string; target: string; weight: number }>;
+}

@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { server } from "../mocks/server";
 import GraphPage from "@/app/graph/page";
-import { FIXTURE_GRAPH_OVERVIEW } from "../mocks/fixtures";
 import type { ReactNode } from "react";
 
 // Mock next/navigation
@@ -35,17 +34,7 @@ function wrapper({ children }: { children: ReactNode }) {
 describe("GraphPage", () => {
   it("shows loading state initially", () => {
     render(<GraphPage />, { wrapper });
-    expect(screen.getByText(/loading graph/i)).toBeInTheDocument();
-  });
-
-  it("renders node count after data loads", async () => {
-    render(<GraphPage />, { wrapper });
-    await waitFor(() =>
-      expect(screen.getByText(/documents/i)).toBeInTheDocument(),
-    );
-    expect(screen.getByText(/documents/i).textContent).toContain(
-      String(FIXTURE_GRAPH_OVERVIEW.nodes.length),
-    );
+    expect(screen.getByText(/loading galaxy/i)).toBeInTheDocument();
   });
 
   it("renders the force graph canvas after data loads", async () => {
@@ -55,16 +44,9 @@ describe("GraphPage", () => {
     );
   });
 
-  it("navigates to /graph/[id] when a node is clicked", async () => {
-    mockPush.mockClear();
+  it("renders the page heading", async () => {
     render(<GraphPage />, { wrapper });
-    await waitFor(() =>
-      expect(screen.getByTestId("force-graph")).toBeInTheDocument(),
-    );
-    fireEvent.click(screen.getByTestId("force-graph"));
-    expect(mockPush).toHaveBeenCalledWith(
-      `/graph/${FIXTURE_GRAPH_OVERVIEW.nodes[0].id}`,
-    );
+    expect(screen.getByText(/AWS Docs Galaxy/i)).toBeInTheDocument();
   });
 
   it("shows error state when API fails", async () => {
@@ -77,5 +59,15 @@ describe("GraphPage", () => {
     await waitFor(() =>
       expect(screen.getByText(/failed to load graph/i)).toBeInTheDocument(),
     );
+  });
+
+  it("activates gravity mode when a node is clicked", async () => {
+    render(<GraphPage />, { wrapper });
+    await waitFor(() =>
+      expect(screen.getByTestId("force-graph")).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByTestId("force-graph"));
+    // After click, gravity mode loads the focus subgraph — back button appears
+    await waitFor(() => expect(screen.getByText(/← Back/)).toBeInTheDocument());
   });
 });

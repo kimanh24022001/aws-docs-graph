@@ -6,6 +6,7 @@ import {
   FIXTURE_GRAPH_OVERVIEW,
   FIXTURE_DOCUMENT,
   FIXTURE_DOCUMENT_NEIGHBORS,
+  FIXTURE_CLUSTERS,
 } from "./fixtures";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
@@ -30,6 +31,18 @@ export const handlers = [
 
   http.get(`${API_BASE}/v1/graph/overview`, () =>
     HttpResponse.json(FIXTURE_GRAPH_OVERVIEW),
+  ),
+
+  http.get(`${API_BASE}/v1/graph/clusters`, () =>
+    HttpResponse.json(FIXTURE_CLUSTERS),
+  ),
+
+  http.get(`${API_BASE}/v1/graph/focus/:nodeId`, () =>
+    HttpResponse.json({
+      center: { id: "doc_01", label: "Tagging ECS", service: "ECS" },
+      nodes: [],
+      edges: [],
+    }),
   ),
 
   http.get(`${API_BASE}/v1/graph/documents/:id`, ({ params }) => {
