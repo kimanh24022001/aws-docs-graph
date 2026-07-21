@@ -11,4 +11,12 @@ public interface GraphRepository {
   Map<String, Object> getDocument(String documentId);
 
   List<Map<String, Object>> search(String query, int limit);
+
+  List<Map<String, Object>> getClusters();
+
+  List<Map<String, Object>> getServicesInCluster(String communityId);
+
+  List<Map<String, Object>> getConceptsForService(String service);
+
+  Map<String, Object> getFocusSubgraph(String nodeId, int limit);
 }
