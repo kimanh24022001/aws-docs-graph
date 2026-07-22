@@ -4,10 +4,9 @@ import uuid
 
 import httpx
 from bs4 import BeautifulSoup
-from fastapi import APIRouter
+from fastapi import APIRouter, BackgroundTasks
 
 from app.db.postgres import get_pool
-from app.graph.concepts import extract_concepts
 from app.ingest.page import ingest_one_page, is_english_url
 
 router = APIRouter()
@@ -55,7 +54,7 @@ async def fetch_all_sitemap_urls(client: httpx.AsyncClient) -> set[str]:
 
 
 @router.post("/internal/ingest/sitemap", status_code=202)
-async def run_sitemap_ingest():
+async def run_sitemap_ingest(background_tasks: BackgroundTasks):
     pool = await get_pool()
     run_id = uuid.uuid4()
 
@@ -109,7 +108,14 @@ async def run_sitemap_ingest():
                     url,
                 )
 
-    # Auto-extract concepts for newly ingested docs
-    await extract_concepts()
+    # Schedule concept extraction as a background task (runs after response is returned)
+    background_tasks.add_task(_run_concept_extraction)
 
     return {"run_id": str(run_id), "processed": processed, "gone": len(gone_urls)}
+
+
+async def _run_concept_extraction():
+    """Background task: extract concepts for newly ingested docs."""
+    from app.graph.concepts import extract_concepts
+
+    await extract_concepts()

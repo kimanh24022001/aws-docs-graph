@@ -86,5 +86,5 @@ resource "aws_budgets_budget" "monthly" {
 resource "aws_cloudwatch_event_rule" "ingest_cron" {
   name                = "${local.name_prefix}-ingest-cron"
   schedule_expression = "cron(0 2 ? * MON *)"
-  description         = "Weekly AWS docs ingest — Mondays 02:00 UTC"
+  description         = "Weekly AWS docs ingest + clustering — Mondays 02:00 UTC"
 }

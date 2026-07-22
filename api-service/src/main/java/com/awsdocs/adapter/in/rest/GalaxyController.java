@@ -22,7 +22,7 @@ public class GalaxyController {
   }
 
   @GetMapping("/clusters")
-  @Cacheable(value = "graph-overview", key = "'clusters'")
+  @Cacheable(value = "graph-clusters", key = "'clusters'")
   public Map<String, Object> clusters() {
     return Map.of("clusters", graphRepository.getClusters());
   }

@@ -40,7 +40,11 @@ def community_label(
 
 @router.post("/internal/graph/run-clustering", status_code=202)
 async def run_clustering():
-    """Load Document graph into networkx, run Louvain, write community_id back to Neo4j."""
+    """Load Document graph into networkx, run Louvain, write community_id back to Neo4j.
+
+    Triggered weekly by EventBridge cron (Mondays 02:00 UTC via ingest-cron Lambda).
+    Also callable manually: POST /internal/graph/run-clustering
+    """
     async with neo4j_session() as s:
         # Load all real (non-placeholder) Document nodes
         result = await s.run(
