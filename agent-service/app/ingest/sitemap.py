@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from fastapi import APIRouter
 
 from app.db.postgres import get_pool
+from app.graph.concepts import extract_concepts
 from app.ingest.page import ingest_one_page, is_english_url
 
 router = APIRouter()
@@ -29,22 +30,27 @@ async def fetch_all_sitemap_urls(client: httpx.AsyncClient) -> set[str]:
     soup = BeautifulSoup(resp.text, "lxml-xml")
     sub_sitemaps = [loc.text for loc in soup.find_all("loc")]
 
-    sem = asyncio.Semaphore(20)  # fetch 20 sub-sitemaps concurrently
+    sem = asyncio.Semaphore(10)
 
     async def fetch_one(sm_url: str) -> set[str]:
         async with sem:
             try:
-                r = await client.get(sm_url)
+                r = await client.get(sm_url, timeout=15)
                 r.raise_for_status()
                 sm_soup = BeautifulSoup(r.text, "lxml-xml")
                 return {loc.text for loc in sm_soup.find_all("loc") if is_english_url(loc.text)}
             except Exception:
                 return set()
 
-    results = await asyncio.gather(*[fetch_one(u) for u in sub_sitemaps])
+    # Process in batches of 50 to avoid memory spike
     all_urls: set[str] = set()
-    for r in results:
-        all_urls.update(r)
+    batch_size = 50
+    for i in range(0, len(sub_sitemaps), batch_size):
+        batch = sub_sitemaps[i : i + batch_size]
+        results = await asyncio.gather(*[fetch_one(u) for u in batch])
+        for r in results:
+            all_urls.update(r)
+
     return all_urls
 
 
@@ -102,5 +108,8 @@ async def run_sitemap_ingest():
                     run_id,
                     url,
                 )
+
+    # Auto-extract concepts for newly ingested docs
+    await extract_concepts()
 
     return {"run_id": str(run_id), "processed": processed, "gone": len(gone_urls)}

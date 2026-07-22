@@ -71,7 +71,8 @@ async def extract_concepts():
                 resp = await client.get(row["url"], headers={"User-Agent": "aws-docs-graph/1.0"})
                 resp.raise_for_status()
                 headings = extract_headings(resp.text)
-                concept_nodes = build_concept_nodes(row["id"], row["service"] or "", headings)
+                doc_id = str(row["id"])
+                concept_nodes = build_concept_nodes(doc_id, row["service"] or "", headings)
 
                 if concept_nodes:
                     async with neo4j_session() as s:
@@ -93,7 +94,7 @@ async def extract_concepts():
                 await pool.execute(
                     "UPDATE app.documents SET extracted_concepts_at = $1 WHERE id = $2",
                     datetime.now(UTC),
-                    row["id"],
+                    str(row["id"]),
                 )
                 docs_processed += 1
             except Exception:
