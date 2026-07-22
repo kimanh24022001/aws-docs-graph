@@ -78,8 +78,9 @@ def parse_page(url: str, html: str) -> ParsedPage:
     raw_title = soup.title.string if soup.title else None
     title = raw_title.split(" - AWS ")[0].strip() if raw_title else None
 
-    # Service + guide from URL — skip locale segment if present
-    url_parts = url.replace(AWS_DOCS_PREFIX, "").split("/")
+    # Service + guide from URL — normalize scheme + skip locale segment
+    normalized = url.replace("http://", "https://")
+    url_parts = normalized.replace(AWS_DOCS_PREFIX, "").split("/")
     # If first segment is a locale (e.g. ja_jp), skip it
     start = 1 if LOCALE_RE.match(url_parts[0]) else 0
     raw_service = url_parts[start] if len(url_parts) > start else None

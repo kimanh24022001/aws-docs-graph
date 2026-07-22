@@ -57,7 +57,7 @@ async def run_clustering():
     node_services = {r["id"]: (r["service"] or "") for r in records if r["id"]}
 
     async with neo4j_session() as s:
-        # Load LINKS_TO edges between real nodes
+        # Load direct LINKS_TO edges between real nodes
         result = await s.run(
             "MATCH (a:Document)-[:LINKS_TO]->(b:Document) "
             "WHERE a.placeholder IS NULL AND b.placeholder IS NULL "
@@ -67,6 +67,23 @@ async def run_clustering():
         edge_records = await result.data()
 
     edges = [(r["src"], r["tgt"]) for r in edge_records]
+
+    # Co-citation edges: two real docs that both link to the same target
+    # (including placeholders) are related. This densifies the graph so
+    # isolated real nodes still cluster by shared references.
+    async with neo4j_session() as s:
+        result = await s.run(
+            "MATCH (a:Document)-[:LINKS_TO]->(shared:Document)<-[:LINKS_TO]-(b:Document) "
+            "WHERE a.id IS NOT NULL AND b.id IS NOT NULL AND a.id < b.id "
+            "AND (a.placeholder IS NULL OR a.placeholder = false) "
+            "AND (b.placeholder IS NULL OR b.placeholder = false) "
+            "WITH a.id AS src, b.id AS tgt, count(shared) AS shared_count "
+            "WHERE shared_count >= 2 "
+            "RETURN src, tgt"
+        )
+        cocite_records = await result.data()
+
+    edges.extend((r["src"], r["tgt"]) for r in cocite_records)
     partition = compute_communities(nodes, edges)
 
     # Write community_id back to Neo4j in batches of 500
