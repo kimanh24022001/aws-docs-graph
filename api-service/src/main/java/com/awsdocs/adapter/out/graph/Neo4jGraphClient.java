@@ -118,6 +118,44 @@ public class Neo4jGraphClient implements GraphRepository {
   }
 
   @Override
+  public List<Map<String, Object>> getCrossServiceEdges() {
+    // Aggregate CROSS_SERVICE edges to category-level connections
+    var categoryEdges = new java.util.HashMap<String, Integer>();
+    var edgeLabels = new java.util.HashMap<String, String>();
+    try (Session session = driver.session()) {
+      session.run("""
+          MATCH (a:Document)-[r:CROSS_SERVICE]->(b:Document)
+          WHERE a.service IS NOT NULL AND b.service IS NOT NULL
+          RETURN a.service AS src, b.service AS tgt,
+                 r.rel_type AS relType, r.weight AS weight
+          """)
+          .list()
+          .forEach(r -> {
+            String srcCat = com.awsdocs.domain.model.ServiceCategory.categoryFor(r.get("src").asString(""));
+            String tgtCat = com.awsdocs.domain.model.ServiceCategory.categoryFor(r.get("tgt").asString(""));
+            if (!srcCat.equals(tgtCat) && !srcCat.equals("Other") && !tgtCat.equals("Other")) {
+              // Use sorted key to deduplicate A→B and B→A
+              String key = srcCat.compareTo(tgtCat) < 0
+                  ? srcCat + "|" + tgtCat
+                  : tgtCat + "|" + srcCat;
+              categoryEdges.merge(key, r.get("weight").asInt(1), Integer::sum);
+              edgeLabels.putIfAbsent(key, r.get("relType").asString("INTEGRATES_WITH"));
+            }
+          });
+    }
+    return categoryEdges.entrySet().stream()
+        .map(e -> {
+          String[] parts = e.getKey().split("\\|");
+          return Map.<String, Object>of(
+              "source", parts[0],
+              "target", parts[1],
+              "weight", e.getValue(),
+              "relType", edgeLabels.get(e.getKey()));
+        })
+        .toList();
+  }
+
+  @Override
   public List<Map<String, Object>> getClusters() {
     // Group documents by hardcoded category (service → category mapping)
     Map<String, Integer> serviceCounts = new java.util.HashMap<>();

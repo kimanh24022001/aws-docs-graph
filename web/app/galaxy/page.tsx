@@ -33,11 +33,23 @@ export default function GalaxyPage() {
   const width = typeof window !== "undefined" ? window.innerWidth : 1200;
   const height = typeof window !== "undefined" ? window.innerHeight - 80 : 700;
 
-  // Level 0: category planets
+  // Level 0: category planets with cross-category edges
   if (view.level === "categories") {
     const cats = (clustersQ.data?.clusters ?? []).filter(
       (c: GalaxyCluster) => c.label !== "Other",
     );
+    const edges =
+      (
+        clustersQ.data as {
+          edges?: {
+            source: string;
+            target: string;
+            weight: number;
+            relType: string;
+          }[];
+        }
+      )?.edges ?? [];
+
     const graphData = {
       nodes: cats.map((c: GalaxyCluster) => ({
         id: c.id,
@@ -46,7 +58,12 @@ export default function GalaxyPage() {
         val: Math.sqrt(c.nodeCount) * 2,
         color: categoryColor(c.label),
       })),
-      links: [],
+      links: edges.map((e) => ({
+        source: e.source,
+        target: e.target,
+        label: e.relType,
+        value: e.weight,
+      })),
     };
 
     return (

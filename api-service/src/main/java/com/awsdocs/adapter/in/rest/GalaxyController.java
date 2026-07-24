@@ -24,7 +24,9 @@ public class GalaxyController {
   @GetMapping("/clusters")
   @Cacheable(value = "graph-clusters", key = "'clusters'")
   public Map<String, Object> clusters() {
-    return Map.of("clusters", graphRepository.getClusters());
+    var clusters = graphRepository.getClusters();
+    var edges = graphRepository.getCrossServiceEdges();
+    return Map.of("clusters", clusters, "edges", edges);
   }
 
   @GetMapping("/clusters/{communityId}/services")

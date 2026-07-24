@@ -13,6 +13,7 @@ public interface GraphRepository {
   List<Map<String, Object>> search(String query, int limit);
 
   List<Map<String, Object>> getClusters();
+  List<Map<String, Object>> getCrossServiceEdges();
 
   List<Map<String, Object>> getServicesInCluster(String communityId);
 
