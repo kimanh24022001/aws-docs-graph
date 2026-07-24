@@ -33,7 +33,7 @@ public class Neo4jGraphClient implements GraphRepository {
               OPTIONAL MATCH (d)-[r]->(neighbor:Document)
               WHERE neighbor IN topNodes
               RETURN d.id AS id, d.url AS url, d.title AS title,
-                     d.service AS service,
+                     d.service AS service, d.community_id AS communityId,
                      size([(d)-[]-() | 1]) AS degree,
                      collect({id: neighbor.id, type: type(r)})[0..10] AS edges
               """,
@@ -45,6 +45,7 @@ public class Neo4jGraphClient implements GraphRepository {
                       "url", r.get("url").asString(""),
                       "title", r.get("title").asString(""),
                       "service", r.get("service").asString(""),
+                      "communityId", r.get("communityId").asString(""),
                       "degree", r.get("degree").asInt(0),
                       "edges", r.get("edges").asList()));
     }
@@ -118,40 +119,62 @@ public class Neo4jGraphClient implements GraphRepository {
 
   @Override
   public List<Map<String, Object>> getClusters() {
+    // Group documents by hardcoded category (service → category mapping)
+    Map<String, Integer> serviceCounts = new java.util.HashMap<>();
     try (Session session = driver.session()) {
-      return session.run("""
+      session.run("""
           MATCH (d:Document)
-          WHERE d.community_id IS NOT NULL
-          WITH d.community_id AS cid, d.community_label AS label,
-               count(d) AS nodeCount,
-               collect(DISTINCT d.service)[0..6] AS services
-          ORDER BY nodeCount DESC
-          RETURN cid AS id, label, nodeCount, services,
-                 head([(d2:Document {community_id: cid})-[]-() | d2.id]) AS centroidId
-          LIMIT 30
+          WHERE (d.placeholder IS NULL OR d.placeholder = false)
+            AND d.service IS NOT NULL AND d.service <> ''
+          RETURN d.service AS service, count(d) AS cnt
           """)
-          .list(r -> Map.of(
-              "id", r.get("id").asString(""),
-              "label", r.get("label").asString(""),
-              "nodeCount", r.get("nodeCount").asInt(0),
-              "services", r.get("services").asList(),
-              "centroidId", r.get("centroidId").asString("")));
+          .list()
+          .forEach(r -> serviceCounts.merge(
+              r.get("service").asString(""), r.get("cnt").asInt(0), Integer::sum));
     }
+
+    // Aggregate services into categories
+    Map<String, Integer> categoryCounts = new java.util.LinkedHashMap<>();
+    Map<String, java.util.List<String>> categoryServices = new java.util.HashMap<>();
+    for (var e : serviceCounts.entrySet()) {
+      String category = com.awsdocs.domain.model.ServiceCategory.categoryFor(e.getKey());
+      categoryCounts.merge(category, e.getValue(), Integer::sum);
+      categoryServices.computeIfAbsent(category, k -> new java.util.ArrayList<>()).add(e.getKey());
+    }
+
+    return categoryCounts.entrySet().stream()
+        .sorted((a, b) -> b.getValue() - a.getValue())
+        .map(e -> Map.<String, Object>of(
+            "id", e.getKey(),
+            "label", e.getKey(),
+            "nodeCount", e.getValue(),
+            "services", categoryServices.get(e.getKey()).stream().sorted().limit(8).toList(),
+            "centroidId", ""))
+        .toList();
   }
 
   @Override
-  public List<Map<String, Object>> getServicesInCluster(String communityId) {
+  public List<Map<String, Object>> getServicesInCluster(String category) {
+    // Return documents whose service maps to the given category
     try (Session session = driver.session()) {
-      return session.run("""
-          MATCH (d:Document {community_id: $cid})
-          WHERE d.service IS NOT NULL AND d.service <> ''
-          WITH d.service AS service, count(d) AS nodeCount
-          ORDER BY nodeCount DESC
-          RETURN service, nodeCount
-          """, Map.of("cid", communityId))
-          .list(r -> Map.of(
-              "service", r.get("service").asString(""),
-              "nodeCount", r.get("nodeCount").asInt(0)));
+      var byService = new java.util.HashMap<String, Integer>();
+      session.run("""
+          MATCH (d:Document)
+          WHERE (d.placeholder IS NULL OR d.placeholder = false)
+            AND d.service IS NOT NULL AND d.service <> ''
+          RETURN d.service AS service, count(d) AS nodeCount
+          """)
+          .list()
+          .forEach(r -> {
+            String svc = r.get("service").asString("");
+            if (com.awsdocs.domain.model.ServiceCategory.categoryFor(svc).equals(category)) {
+              byService.merge(svc, r.get("nodeCount").asInt(0), Integer::sum);
+            }
+          });
+      return byService.entrySet().stream()
+          .sorted((a, b) -> b.getValue() - a.getValue())
+          .map(e -> Map.<String, Object>of("service", e.getKey(), "nodeCount", e.getValue()))
+          .toList();
     }
   }
 

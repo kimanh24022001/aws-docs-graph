@@ -52,6 +52,7 @@ export interface GraphNode {
   url: string;
   title: string | null;
   service: string | null;
+  communityId?: string;
 }
 
 export interface GraphEdge {
