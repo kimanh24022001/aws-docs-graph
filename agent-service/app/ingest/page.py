@@ -45,6 +45,9 @@ _SERVICE_ALIASES = {
     "amazonapigateway": "apigateway",
 }
 
+# Public alias for use by other modules
+SERVICE_ALIASES = _SERVICE_ALIASES
+
 
 def _normalize_service(raw: str) -> str:
     lower = raw.lower()

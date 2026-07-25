@@ -1,6 +1,7 @@
 """Hybrid evidence extraction: structured parser + Ollama LLM batch job."""
 
 import json
+import logging
 import re
 from datetime import UTC, datetime
 
@@ -10,7 +11,9 @@ from fastapi import APIRouter
 
 from app.db.neo4j import session as neo4j_session
 from app.db.postgres import get_pool
-from app.ingest.page import _SERVICE_ALIASES
+from app.ingest.page import SERVICE_ALIASES as _SERVICE_ALIASES
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -286,6 +289,7 @@ async def _upsert_evidence(
                                   e.extraction_method = $method
                     ON MATCH SET  e.evidence_text = coalesce(e.evidence_text, $evidence_text),
                                   e.source_url = coalesce(e.source_url, $source_url),
+                                  e.extraction_method = coalesce(e.extraction_method, $method),
                                   e.confidence = CASE WHEN $confidence > coalesce(e.confidence, 0)
                                                  THEN $confidence ELSE e.confidence END
                     """,
@@ -324,7 +328,9 @@ async def extract_evidence(
     if service_filter:
         query += " AND service = $1"
         params.append(service_filter)
-    query += f" LIMIT {limit}"
+    params.append(limit)
+    limit_param = f"${len(params)}"
+    query += f" LIMIT {limit_param}"
 
     rows = await pool.fetch(query, *params)
 
@@ -375,7 +381,8 @@ async def extract_evidence(
                         edges_created += c
 
                 docs_processed += 1
-            except Exception:
+            except Exception as exc:
+                logger.warning("Failed to process doc %s: %s", row.get("url", "?"), exc)
                 errors += 1
 
     return {
