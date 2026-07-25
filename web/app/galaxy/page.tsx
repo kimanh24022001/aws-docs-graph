@@ -29,6 +29,7 @@ interface PlanetData {
   color: string;
   position: [number, number, number];
   size: number;
+  services: string[];
 }
 
 interface EdgeData {
@@ -218,6 +219,16 @@ function GalaxyScene({
     return m;
   }, [planets]);
 
+  const categoryToService = useMemo(() => {
+    const m = new Map<string, string>();
+    planets.forEach((p) => {
+      if (p.services && p.services.length > 0) {
+        m.set(p.id, p.services[0]); // first service = most common in category
+      }
+    });
+    return m;
+  }, [planets]);
+
   return (
     <>
       <ambientLight intensity={0.3} />
@@ -245,12 +256,17 @@ function GalaxyScene({
             color={REL_COLORS[e.relType] ?? "#334"}
             onClick={
               onLinkClick
-                ? () =>
+                ? () => {
+                    const srcService =
+                      categoryToService.get(e.source) ?? e.source;
+                    const tgtService =
+                      categoryToService.get(e.target) ?? e.target;
                     onLinkClick({
-                      source: e.source,
-                      target: e.target,
+                      source: srcService,
+                      target: tgtService,
                       label: e.relType,
-                    })
+                    });
+                  }
                 : undefined
             }
           />
@@ -407,6 +423,7 @@ function buildPlanetData(clusters: GalaxyCluster[]): PlanetData[] {
       color: categoryColor(c.label),
       position: [x, y, z],
       size,
+      services: c.services ?? [],
     };
   });
 }

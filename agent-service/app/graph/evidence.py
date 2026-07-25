@@ -270,6 +270,10 @@ async def _upsert_evidence(
             if data and data[0]["updated"] > 0:
                 enriched += 1
             else:
+                # Only create new edges from structured parser — LLM edges
+                # require an existing match to prevent hallucination
+                if r.get("extraction_method") != "structured_parser":
+                    continue
                 # Create new edge if no existing match
                 await s.run(
                     """
@@ -310,7 +314,7 @@ async def _upsert_evidence(
 @router.post("/internal/graph/extract-evidence", status_code=202)
 async def extract_evidence(
     limit: int = 100,
-    use_llm: bool = True,
+    use_llm: bool = False,
     service_filter: str = "",
 ):
     """Hybrid extraction: structured parser (always) + Ollama LLM (optional).
