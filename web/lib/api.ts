@@ -10,6 +10,7 @@ import type {
   DocumentNeighborsResponse,
   GalaxyCluster,
   GalaxyFocusResponse,
+  EvidenceResponse,
 } from "./types";
 
 export const queryClient = new QueryClient({
@@ -149,4 +150,16 @@ export function useClusters() {
     queryFn: fetchClusters,
     staleTime: 60 * 60 * 1000, // 1h
   });
+}
+
+export async function fetchEvidence(
+  src: string,
+  tgt: string,
+  rel: string,
+): Promise<EvidenceResponse> {
+  return apiFetch<EvidenceResponse>(
+    `/v1/graph/evidence?src=${encodeURIComponent(src)}&tgt=${encodeURIComponent(tgt)}&rel=${encodeURIComponent(rel)}`,
+    undefined,
+    true,
+  );
 }

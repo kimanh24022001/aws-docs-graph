@@ -7,6 +7,7 @@ import {
   FIXTURE_DOCUMENT,
   FIXTURE_DOCUMENT_NEIGHBORS,
   FIXTURE_CLUSTERS,
+  FIXTURE_EVIDENCE,
 } from "./fixtures";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
@@ -58,4 +59,8 @@ export const handlers = [
     }
     return HttpResponse.json([]);
   }),
+
+  http.get(`${API_BASE}/v1/graph/evidence`, () =>
+    HttpResponse.json(FIXTURE_EVIDENCE),
+  ),
 ];

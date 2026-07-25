@@ -97,3 +97,18 @@ export interface GalaxyFocusResponse {
   nodes: GalaxyFocusNode[];
   edges: Array<{ source: string; target: string; weight: number }>;
 }
+
+export interface EvidenceItem {
+  evidence_text: string;
+  source_url: string;
+  source_doc_title: string;
+  confidence: number;
+  extraction_method: "llm" | "structured_parser" | "rule_based";
+}
+
+export interface EvidenceResponse {
+  src: string;
+  tgt: string;
+  rel_type: string;
+  evidence: EvidenceItem[];
+}

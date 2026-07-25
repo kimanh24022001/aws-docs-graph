@@ -6,6 +6,7 @@ import type {
   DocumentResponse,
   DocumentNeighborsResponse,
   GalaxyCluster,
+  EvidenceResponse,
 } from "@/lib/types";
 
 export const FIXTURE_QUERY_RESPONSE: QueryResponse = {
@@ -141,6 +142,23 @@ export const FIXTURE_CLUSTERS: { clusters: GalaxyCluster[] } = {
       nodeCount: 2,
       services: ["ECS", "Billing"],
       centroidId: "doc_01",
+    },
+  ],
+};
+
+export const FIXTURE_EVIDENCE: EvidenceResponse = {
+  src: "lambda",
+  tgt: "dynamodb",
+  rel_type: "TRIGGERS",
+  evidence: [
+    {
+      evidence_text:
+        "Lambda functions can write to DynamoDB tables on invocation.",
+      source_url:
+        "https://docs.aws.amazon.com/lambda/latest/dg/services-dynamodb.html",
+      source_doc_title: "Using Lambda with DynamoDB",
+      confidence: 0.92,
+      extraction_method: "llm",
     },
   ],
 };
