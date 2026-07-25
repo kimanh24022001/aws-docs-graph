@@ -91,11 +91,11 @@ function Planet({
         />
       </mesh>
       {/* Label */}
-      <Html distanceFactor={20} center>
+      <Html distanceFactor={14} center>
         <div
           style={{
             color: "#fff",
-            fontSize: 11,
+            fontSize: 14,
             fontWeight: 700,
             background: "rgba(0,0,0,0.6)",
             padding: "2px 6px",
@@ -336,11 +336,11 @@ function DocNode({
         />
       </mesh>
       {hovered && (
-        <Html distanceFactor={15} center>
+        <Html distanceFactor={10} center>
           <div
             style={{
               color: "#fff",
-              fontSize: 10,
+              fontSize: 13,
               background: "rgba(0,0,0,0.8)",
               padding: "2px 6px",
               borderRadius: 3,
@@ -500,13 +500,13 @@ function ServiceScene({
               <sphereGeometry args={[0.8, 8, 8]} />
               <meshBasicMaterial color={edgeColor} transparent opacity={0.01} />
             </mesh>
-            <Html position={mid} center distanceFactor={25}>
+            <Html position={mid} center distanceFactor={18}>
               <div
                 style={{
                   background: `${edgeColor}33`,
                   border: `1px solid ${edgeColor}88`,
                   color: edgeColor,
-                  fontSize: 8,
+                  fontSize: 11,
                   padding: "1px 5px",
                   borderRadius: 3,
                   whiteSpace: "nowrap",
@@ -584,11 +584,11 @@ function ServicePlanetMesh({
           roughness={0.4}
         />
       </mesh>
-      <Html distanceFactor={20} center>
+      <Html distanceFactor={14} center>
         <div
           style={{
             color: "#fff",
-            fontSize: 10,
+            fontSize: 13,
             fontWeight: 700,
             background: "rgba(0,0,0,0.6)",
             padding: "2px 6px",
