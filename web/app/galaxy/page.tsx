@@ -291,10 +291,10 @@ function GalaxyScene({
       </EffectComposer>
 
       <OrbitControls
-        enablePan
-        enableZoom
-        enableRotate
-        autoRotate
+        enablePan={false}
+        enableZoom={false}
+        enableRotate={false}
+        autoRotate={false}
         autoRotateSpeed={0.4}
       />
     </>
@@ -397,10 +397,10 @@ function DocScene({ nodes }: { nodes: GraphNode[] }) {
         />
       </EffectComposer>
       <OrbitControls
-        enablePan
-        enableZoom
-        enableRotate
-        autoRotate
+        enablePan={false}
+        enableZoom={false}
+        enableRotate={false}
+        autoRotate={false}
         autoRotateSpeed={0.3}
       />
     </>
@@ -542,10 +542,10 @@ function ServiceScene({
         />
       </EffectComposer>
       <OrbitControls
-        enablePan
-        enableZoom
-        enableRotate
-        autoRotate
+        enablePan={false}
+        enableZoom={false}
+        enableRotate={false}
+        autoRotate={false}
         autoRotateSpeed={0.3}
       />
     </>
