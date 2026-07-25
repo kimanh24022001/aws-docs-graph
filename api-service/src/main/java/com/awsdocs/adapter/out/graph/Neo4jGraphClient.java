@@ -235,6 +235,29 @@ public class Neo4jGraphClient implements GraphRepository {
   }
 
   @Override
+  public List<Map<String, Object>> getEvidence(String src, String tgt, String relType) {
+    try (Session session = driver.session()) {
+      return session.run("""
+          MATCH (a:Document {service: $src})-[r:CROSS_SERVICE {rel_type: $relType}]->(b:Document {service: $tgt})
+          WHERE r.evidence_text IS NOT NULL
+          RETURN r.evidence_text AS evidence_text,
+                 r.source_url AS source_url,
+                 coalesce(r.source_doc_title, '') AS source_doc_title,
+                 r.confidence AS confidence,
+                 coalesce(r.extraction_method, 'rule_based') AS extraction_method
+          ORDER BY r.confidence DESC
+          LIMIT 5
+          """, Map.of("src", src, "tgt", tgt, "relType", relType))
+          .list(r -> Map.of(
+              "evidence_text", r.get("evidence_text").asString(""),
+              "source_url", r.get("source_url").asString(""),
+              "source_doc_title", r.get("source_doc_title").asString(""),
+              "confidence", r.get("confidence").asDouble(0.6),
+              "extraction_method", r.get("extraction_method").asString("rule_based")));
+    }
+  }
+
+  @Override
   public Map<String, Object> getFocusSubgraph(String nodeId, int limit) {
     try (Session session = driver.session()) {
       // BFS up to 3 hops, score = 1 / (distance * 2)

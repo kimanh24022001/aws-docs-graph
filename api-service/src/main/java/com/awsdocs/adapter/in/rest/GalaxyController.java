@@ -47,4 +47,16 @@ public class GalaxyController {
     if (result.isEmpty()) return ResponseEntity.notFound().build();
     return ResponseEntity.ok(result);
   }
+
+  @GetMapping("/evidence")
+  public Map<String, Object> evidence(
+      @RequestParam String src,
+      @RequestParam String tgt,
+      @RequestParam String rel) {
+    return Map.of(
+        "src", src,
+        "tgt", tgt,
+        "rel_type", rel,
+        "evidence", graphRepository.getEvidence(src, tgt, rel));
+  }
 }

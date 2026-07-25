@@ -20,4 +20,6 @@ public interface GraphRepository {
   List<Map<String, Object>> getConceptsForService(String service);
 
   Map<String, Object> getFocusSubgraph(String nodeId, int limit);
+
+  List<Map<String, Object>> getEvidence(String src, String tgt, String relType);
 }
