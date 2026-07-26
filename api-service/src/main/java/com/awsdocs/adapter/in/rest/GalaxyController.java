@@ -59,4 +59,11 @@ public class GalaxyController {
         "rel_type", rel,
         "evidence", graphRepository.getEvidence(src, tgt, rel));
   }
+
+  @GetMapping("/services/{service}/evidence-edges")
+  public Map<String, Object> serviceEvidenceEdges(@PathVariable String service) {
+    return Map.of(
+        "service", service,
+        "edges", graphRepository.getServiceEvidenceEdges(service));
+  }
 }

@@ -13,7 +13,11 @@ import { Stars, OrbitControls, Html } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import * as THREE from "three";
 import { useQuery } from "@tanstack/react-query";
-import { fetchClusters, fetchGraphOverview } from "@/lib/api";
+import {
+  fetchClusters,
+  fetchGraphOverview,
+  fetchServiceEvidenceEdges,
+} from "@/lib/api";
 import { categoryFor, categoryColor } from "@/lib/categories";
 import type { GalaxyCluster, GraphNode } from "@/lib/types";
 import { EvidencePanel } from "@/components/EvidencePanel";
@@ -656,6 +660,40 @@ export default function GalaxyPage() {
     staleTime: 24 * 60 * 60 * 1000,
   });
 
+  // Fetch evidence edges for all services in the clicked category
+  const categoryServices = useMemo(() => {
+    if (view.level !== "category") return [];
+    const allNodes = overviewQ.data?.nodes ?? [];
+    const svcSet = new Set<string>();
+    allNodes
+      .filter((n) => categoryFor(n.service) === view.category)
+      .forEach((n) => {
+        if (n.service) svcSet.add(n.service);
+      });
+    return [...svcSet].slice(0, 12);
+  }, [view, overviewQ.data]);
+
+  const evidenceEdgesQ = useQuery({
+    queryKey: [
+      "galaxy",
+      "evidence-edges",
+      view.level === "category" ? view.category : "",
+    ],
+    queryFn: async () => {
+      if (view.level !== "category" || categoryServices.length === 0) return [];
+      const results = await Promise.all(
+        categoryServices.map((svc) =>
+          fetchServiceEvidenceEdges(svc).catch(() => null),
+        ),
+      );
+      return results.flatMap(
+        (r) => r?.edges.map((e) => ({ source: r.service, ...e })) ?? [],
+      );
+    },
+    enabled: view.level === "category" && categoryServices.length > 0,
+    staleTime: 60 * 60 * 1000,
+  });
+
   const planets = useMemo(
     () => buildPlanetData(clustersQ.data?.clusters ?? []),
     [clustersQ.data],
@@ -704,44 +742,12 @@ export default function GalaxyPage() {
     const svcEdges: ServiceEdge[] = [];
     const extraServices = new Map<string, ServicePlanet>();
 
-    // Only show edges with real evidence from Neo4j
-    const knownEvidenceEdges: ServiceEdge[] = [
-      // Compute
-      { source: "lambda", target: "dynamodb", relType: "INTEGRATES_WITH" },
-      { source: "lambda", target: "s3", relType: "TRIGGERED_BY" },
-      { source: "lambda", target: "cloudwatch", relType: "MONITORED_BY" },
-      { source: "lambda", target: "sqs", relType: "INTEGRATES_WITH" },
-      { source: "lambda", target: "rds", relType: "INTEGRATES_WITH" },
-      { source: "cdk", target: "lambda", relType: "DEPLOYS_VIA" },
-      // Storage
-      { source: "s3", target: "iam", relType: "AUTH_VIA" },
-      { source: "s3", target: "lambda", relType: "TRIGGERS" },
-      { source: "s3", target: "ec2", relType: "INTEGRATES_WITH" },
-      { source: "rds", target: "s3", relType: "INTEGRATES_WITH" },
-      // Security
-      { source: "iam", target: "dynamodb", relType: "INTEGRATES_WITH" },
-      { source: "iam", target: "cloudwatch", relType: "INTEGRATES_WITH" },
-      // DevOps
-      { source: "ecs", target: "cloudformation", relType: "INTEGRATES_WITH" },
-      // AI/ML
-      { source: "bedrock", target: "s3", relType: "READS_FROM" },
-      { source: "bedrock", target: "iam", relType: "AUTHENTICATES_WITH" },
-      { source: "bedrock", target: "cloudwatch", relType: "MONITORED_BY" },
-      // Networking
-      { source: "apigateway", target: "lambda", relType: "TRIGGERS" },
-      { source: "cloudfront", target: "s3", relType: "READS_FROM" },
-      { source: "vpc", target: "ec2", relType: "INTEGRATES_WITH" },
-      // Analytics
-      { source: "kinesis", target: "lambda", relType: "TRIGGERS" },
-      { source: "athena", target: "s3", relType: "READS_FROM" },
-      { source: "glue", target: "s3", relType: "READS_FROM" },
-    ];
-
-    knownEvidenceEdges.forEach((e) => {
+    // Use API-fetched evidence edges instead of hardcoded list
+    const apiEdges = evidenceEdgesQ.data ?? [];
+    apiEdges.forEach((e) => {
       const srcInCat = serviceSet.has(e.source);
       const tgtInCat = serviceSet.has(e.target);
       if (!srcInCat && !tgtInCat) return;
-      // Add ghost node for the external service
       if (!srcInCat && !extraServices.has(e.source)) {
         const angle = Math.random() * Math.PI * 2;
         extraServices.set(e.source, {
@@ -768,7 +774,7 @@ export default function GalaxyPage() {
           docCount: 0,
         });
       }
-      svcEdges.push(e);
+      svcEdges.push({ source: e.source, target: e.target, relType: e.relType });
     });
 
     const allPlanets = [
@@ -776,7 +782,7 @@ export default function GalaxyPage() {
       ...Array.from(extraServices.values()),
     ];
     return { planets: allPlanets, edges: svcEdges };
-  }, [view, overviewQ.data, clustersQ.data]);
+  }, [view, overviewQ.data, evidenceEdgesQ.data]);
 
   const catNodes = useMemo(() => {
     if (view.level !== "service") return [];

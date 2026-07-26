@@ -22,4 +22,6 @@ public interface GraphRepository {
   Map<String, Object> getFocusSubgraph(String nodeId, int limit);
 
   List<Map<String, Object>> getEvidence(String src, String tgt, String relType);
+
+  List<Map<String, Object>> getServiceEvidenceEdges(String service);
 }

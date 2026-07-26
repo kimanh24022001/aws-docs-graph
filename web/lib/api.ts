@@ -163,3 +163,22 @@ export async function fetchEvidence(
     true,
   );
 }
+
+export async function fetchServiceEvidenceEdges(
+  service: string,
+): Promise<{
+  service: string;
+  edges: {
+    target: string;
+    relType: string;
+    evidenceText: string;
+    sourceUrl: string;
+    confidence: number;
+  }[];
+}> {
+  return apiFetch(
+    `/v1/graph/services/${encodeURIComponent(service)}/evidence-edges`,
+    undefined,
+    true,
+  );
+}
