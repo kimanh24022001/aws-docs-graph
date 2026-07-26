@@ -885,7 +885,7 @@ export default function GalaxyPage() {
           {view.level === "categories" ? (
             <GalaxyScene
               planets={planets}
-              edges={edges}
+              edges={[]}
               onPlanetClick={handlePlanetClick}
               onLinkClick={handleLinkClick}
             />
