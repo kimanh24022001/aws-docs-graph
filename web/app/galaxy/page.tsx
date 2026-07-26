@@ -704,12 +704,21 @@ export default function GalaxyPage() {
     const svcEdges: ServiceEdge[] = [];
     const extraServices = new Map<string, ServicePlanet>();
 
-    // Only show edges with real evidence (seeded in Neo4j)
+    // Only show edges with real evidence from Neo4j
     const knownEvidenceEdges: ServiceEdge[] = [
       { source: "lambda", target: "dynamodb", relType: "INTEGRATES_WITH" },
       { source: "lambda", target: "s3", relType: "TRIGGERED_BY" },
       { source: "lambda", target: "cloudwatch", relType: "MONITORED_BY" },
+      { source: "lambda", target: "sqs", relType: "INTEGRATES_WITH" },
+      { source: "lambda", target: "rds", relType: "INTEGRATES_WITH" },
       { source: "s3", target: "iam", relType: "AUTH_VIA" },
+      { source: "s3", target: "lambda", relType: "TRIGGERS" },
+      { source: "s3", target: "ec2", relType: "INTEGRATES_WITH" },
+      { source: "iam", target: "dynamodb", relType: "INTEGRATES_WITH" },
+      { source: "iam", target: "cloudwatch", relType: "INTEGRATES_WITH" },
+      { source: "rds", target: "s3", relType: "INTEGRATES_WITH" },
+      { source: "ecs", target: "cloudformation", relType: "INTEGRATES_WITH" },
+      { source: "cdk", target: "lambda", relType: "DEPLOYS_VIA" },
     ];
 
     knownEvidenceEdges.forEach((e) => {
