@@ -124,6 +124,80 @@ def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list[str]
     return chunks
 
 
+def parse_co_mentions(html: str, doc_service: str, source_url: str) -> list[dict]:
+    """Extract relationships from sentences that mention 2+ services together.
+
+    Scans every sentence for co-occurring service names and infers relationship
+    type from verb patterns. Confidence is lower than structured sections (0.70).
+    """
+    import re as _re
+
+    soup = BeautifulSoup(html, "lxml")
+    main = soup.find(id="main-content") or soup.body or soup
+    if not main:
+        return []
+
+    text = main.get_text(separator=" ", strip=True)
+    sentences = _re.split(r"[.!?]\s+", text)
+
+    VERB_PATTERNS = [
+        (_re.compile(r"\btrigger[s]?\b|\binvoke[s]?\b", _re.I), "TRIGGERS"),
+        (_re.compile(r"\bmonitor[s]?\b|\blog[s]?\b|\bmetric[s]?\b", _re.I), "MONITORED_BY"),
+        (_re.compile(r"\bencrypt[s]?\b", _re.I), "ENCRYPTS_WITH"),
+        (_re.compile(r"\bdeploy[s]?\b|\bprovision[s]?\b", _re.I), "DEPLOYS_VIA"),
+        (_re.compile(r"\bstor[es]+\b|\bbackup[s]?\b|\bpersist[s]?\b", _re.I), "STORES_IN"),
+        (
+            _re.compile(r"\bauthentic\w+\b|\bauthoriz\w+\b|\biam role\b", _re.I),
+            "AUTHENTICATES_WITH",
+        ),
+        (_re.compile(r"\bread[s]?\b|\bquery\b|\bqueries\b", _re.I), "READS_FROM"),
+        (_re.compile(r"\bwrite[s]?\b|\bput[s]?\b|\bsend[s]?\b|\bpublish\w*\b", _re.I), "WRITES_TO"),
+    ]
+
+    rels = []
+    seen = set()
+
+    for sentence in sentences:
+        s_lower = sentence.lower()
+        # Find all services mentioned in this sentence
+        found_services = set()
+        for alias in sorted(_SERVICE_LOOKUP.keys(), key=len, reverse=True):
+            if alias in s_lower:
+                svc = _SERVICE_LOOKUP[alias]
+                if svc != doc_service:
+                    found_services.add(svc)
+
+        if not found_services:
+            continue
+
+        # Infer rel_type from verbs
+        rel_type = "INTEGRATES_WITH"
+        for pattern, rtype in VERB_PATTERNS:
+            if pattern.search(sentence):
+                rel_type = rtype
+                break
+
+        # Create edge from doc_service to each mentioned service
+        evidence = sentence.strip()[:200]
+        for tgt in found_services:
+            key = (doc_service, rel_type, tgt)
+            if key not in seen:
+                seen.add(key)
+                rels.append(
+                    {
+                        "src": doc_service,
+                        "rel_type": rel_type,
+                        "tgt": tgt,
+                        "evidence_text": evidence,
+                        "source_url": source_url,
+                        "confidence": 0.70,
+                        "extraction_method": "co_mention",
+                    }
+                )
+
+    return rels[:20]  # cap per doc to avoid noise
+
+
 def parse_structured_sections(html: str, doc_service: str, source_url: str) -> list[dict]:
     """Extract relationships from HTML section headers + list items."""
     soup = BeautifulSoup(html, "lxml")
@@ -363,6 +437,14 @@ async def extract_evidence(
                 for rel in struct_rels:
                     rel["source_doc_title"] = source_title
                 e, c = await _upsert_evidence(struct_rels, source_url, source_title)
+                edges_enriched += e
+                edges_created += c
+
+                # 1b. Co-mention parser (free, catches prose relationships)
+                co_rels = parse_co_mentions(html, service, source_url)
+                for rel in co_rels:
+                    rel["source_doc_title"] = source_title
+                e, c = await _upsert_evidence(co_rels, source_url, source_title)
                 edges_enriched += e
                 edges_created += c
 
