@@ -701,54 +701,17 @@ export default function GalaxyPage() {
     });
 
     const serviceSet = new Set(serviceList.map(([s]) => s));
-
-    // For cross-category edges, pick the dominant service from each category
-    // and add the external service as a ghost node if not already in the list
     const svcEdges: ServiceEdge[] = [];
-    const extraServices = new Map<string, ServicePlanet>(); // ghost nodes from other categories
+    const extraServices = new Map<string, ServicePlanet>();
 
-    allCrossEdges.forEach((e, idx) => {
-      const isSourceCat = e.source === view.category;
-      const isTargetCat = e.target === view.category;
-      if (!isSourceCat && !isTargetCat) return;
-
-      // Get dominant service for this category's side
-      const thisSvc = serviceList[0]?.[0]; // use most popular service as representative
-      if (!thisSvc) return;
-
-      // Get a representative service from the other category
-      const otherCat = isSourceCat ? e.target : e.source;
-      const otherSvcName = otherCat.toLowerCase().replace(/\//g, "-"); // use category name as pseudo-service
-
-      // Place ghost node in orbit slightly outside main ring
-      const angle = (idx / allCrossEdges.length) * Math.PI * 2 + 0.3;
-      const r2 = 32;
-      if (!extraServices.has(otherSvcName)) {
-        extraServices.set(otherSvcName, {
-          service: otherSvcName,
-          position: [
-            Math.cos(angle) * r2,
-            (Math.random() - 0.5) * 4,
-            Math.sin(angle) * r2,
-          ],
-          color: categoryColor(otherCat),
-          docCount: 0,
-        });
-      }
-
-      const srcSvc = isSourceCat ? thisSvc : otherSvcName;
-      const tgtSvc = isTargetCat ? thisSvc : otherSvcName;
-      svcEdges.push({ source: srcSvc, target: tgtSvc, relType: e.relType });
-    });
-
-    // Also add CROSS_SERVICE edges directly between services in Neo4j evidence data
-    // Use the seeded evidence edges we know about
+    // Only show edges with real evidence (seeded in Neo4j)
     const knownEvidenceEdges: ServiceEdge[] = [
       { source: "lambda", target: "dynamodb", relType: "INTEGRATES_WITH" },
       { source: "lambda", target: "s3", relType: "TRIGGERED_BY" },
       { source: "lambda", target: "cloudwatch", relType: "MONITORED_BY" },
       { source: "s3", target: "iam", relType: "AUTH_VIA" },
     ];
+
     knownEvidenceEdges.forEach((e) => {
       const srcInCat = serviceSet.has(e.source);
       const tgtInCat = serviceSet.has(e.target);
