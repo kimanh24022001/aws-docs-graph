@@ -719,6 +719,9 @@ export default function GalaxyPage() {
       { source: "rds", target: "s3", relType: "INTEGRATES_WITH" },
       { source: "ecs", target: "cloudformation", relType: "INTEGRATES_WITH" },
       { source: "cdk", target: "lambda", relType: "DEPLOYS_VIA" },
+      { source: "bedrock", target: "s3", relType: "READS_FROM" },
+      { source: "bedrock", target: "iam", relType: "AUTHENTICATES_WITH" },
+      { source: "bedrock", target: "cloudwatch", relType: "MONITORED_BY" },
     ];
 
     knownEvidenceEdges.forEach((e) => {
