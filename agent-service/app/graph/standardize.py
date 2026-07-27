@@ -20,6 +20,9 @@ CANONICAL_MAP: dict[str, str] = {
     "embedded-csdk": "sdk",
     "freertos": "sdk",
     "code-library": "sdk",
+    "appstudio": "sdk",
+    "aws-sdk-go": "sdk",
+    "aws-sdk-pandas": "sdk",
 }
 
 

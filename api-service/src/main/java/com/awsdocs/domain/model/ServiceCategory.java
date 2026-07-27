@@ -89,7 +89,9 @@ public final class ServiceCategory {
       Map.entry("awssdkforphp", "SDK"),
       Map.entry("embedded-csdk", "SDK"),
       Map.entry("freertos", "SDK"),
-      Map.entry("code-library", "SDK"));
+      Map.entry("code-library", "SDK"),
+      Map.entry("aws-sdk-go", "SDK"),
+      Map.entry("aws-sdk-pandas", "SDK"));
 
   /** Returns the category for a service, or "Other" if unmapped. */
   public static String categoryFor(String service) {

@@ -82,6 +82,8 @@ const SERVICE_TO_CATEGORY: Record<string, string> = {
   freertos: "SDK",
   "code-library": "SDK",
   appstudio: "SDK",
+  "aws-sdk-go": "SDK",
+  "aws-sdk-pandas": "SDK",
 };
 
 export function categoryFor(service: string | null): string {
