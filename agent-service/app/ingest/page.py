@@ -43,6 +43,17 @@ _SERVICE_ALIASES = {
     "amazoncognito": "cognito",
     "awssecretsmanager": "secretsmanager",
     "amazonapigateway": "apigateway",
+    "awsec2": "ec2",
+    "sdkfornet": "sdk",
+    "awsjavasdk": "sdk",
+    "aws-sdk-php": "sdk",
+    "awssdkforphp": "sdk",
+    "embedded-csdk": "sdk",
+    "freertos": "sdk",
+    "code-library": "sdk",
+    "appstudio": "sdk",
+    "aws-sdk-go": "sdk",
+    "aws-sdk-pandas": "sdk",
 }
 
 # Public alias for use by other modules
