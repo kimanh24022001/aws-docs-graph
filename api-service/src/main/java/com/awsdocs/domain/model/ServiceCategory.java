@@ -79,7 +79,17 @@ public final class ServiceCategory {
       Map.entry("cli", "DevOps"),
       Map.entry("codebuild", "DevOps"),
       Map.entry("codepipeline", "DevOps"),
-      Map.entry("codedeploy", "DevOps"));
+      Map.entry("codedeploy", "DevOps"),
+      // SDK category (for SDK docs grouped separately)
+      Map.entry("sdk", "SDK"),
+      // Fallback aliases — handle data not yet migrated
+      Map.entry("sdkfornet", "SDK"),
+      Map.entry("awsjavasdk", "SDK"),
+      Map.entry("aws-sdk-php", "SDK"),
+      Map.entry("awssdkforphp", "SDK"),
+      Map.entry("embedded-csdk", "SDK"),
+      Map.entry("freertos", "SDK"),
+      Map.entry("code-library", "SDK"));
 
   /** Returns the category for a service, or "Other" if unmapped. */
   public static String categoryFor(String service) {
