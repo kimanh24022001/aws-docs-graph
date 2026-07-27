@@ -72,6 +72,16 @@ const SERVICE_TO_CATEGORY: Record<string, string> = {
   codebuild: "DevOps",
   codepipeline: "DevOps",
   codedeploy: "DevOps",
+  // SDK
+  sdk: "SDK",
+  sdkfornet: "SDK",
+  awsjavasdk: "SDK",
+  "aws-sdk-php": "SDK",
+  awssdkforphp: "SDK",
+  "embedded-csdk": "SDK",
+  freertos: "SDK",
+  "code-library": "SDK",
+  appstudio: "SDK",
 };
 
 export function categoryFor(service: string | null): string {
@@ -89,6 +99,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   "AI/ML": "#00bcd4",
   Integration: "#34a853",
   DevOps: "#607d8b",
+  SDK: "#78909c",
   Other: "#999999",
 };
 
