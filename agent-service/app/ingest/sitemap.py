@@ -1,18 +1,21 @@
 import asyncio
 import hashlib
+import logging
 import uuid
 
 import httpx
 from bs4 import BeautifulSoup
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 
 from app.db.postgres import get_pool
 from app.ingest.page import ingest_one_page, is_english_url
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 AWS_SITEMAP_INDEX = "https://docs.aws.amazon.com/sitemap_index.xml"
 PER_RUN_CAP = 2000
+CRAWL_DELAY_SECONDS = 0.1  # max ~10 pages/second to avoid throttling
 
 
 def diff_urls(sitemap_urls: set[str], existing_hashes: dict[str, str]) -> tuple[set[str], set[str]]:
@@ -56,61 +59,76 @@ async def fetch_all_sitemap_urls(client: httpx.AsyncClient) -> set[str]:
 @router.post("/internal/ingest/sitemap", status_code=202)
 async def run_sitemap_ingest(background_tasks: BackgroundTasks):
     pool = await get_pool()
+
+    # Idempotency lock: reject if a run is already in progress
+    lock_row = await pool.fetchrow("SELECT last_url FROM app.crawl_cursor WHERE id = 'lock'")
+    if lock_row and lock_row["last_url"] == "RUNNING":
+        raise HTTPException(status_code=409, detail="Sitemap ingest already running")
+
+    # Acquire lock
+    await pool.execute(
+        "INSERT INTO app.crawl_cursor (id, last_url) VALUES ('lock', 'RUNNING') "
+        "ON CONFLICT (id) DO UPDATE SET last_url = 'RUNNING', updated_at = now()"
+    )
+
     run_id = uuid.uuid4()
+    try:
+        async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
+            sitemap_urls = await fetch_all_sitemap_urls(client)
 
-    async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
-        sitemap_urls = await fetch_all_sitemap_urls(client)
-
-        # Load existing url_hashes from Postgres
-        rows = await pool.fetch("SELECT url_hash, url FROM app.documents WHERE status = 'active'")
-        existing_hashes = {row["url_hash"]: row["url"] for row in rows}
-
-        new_urls, gone_urls = diff_urls(sitemap_urls, existing_hashes)
-
-        # Mark gone
-        if gone_urls:
-            await pool.execute(
-                "UPDATE app.documents SET status = 'gone' WHERE url = ANY($1::text[])",
-                list(gone_urls),
+            rows = await pool.fetch(
+                "SELECT url_hash, url FROM app.documents WHERE status = 'active'"
             )
+            existing_hashes = {row["url_hash"]: row["url"] for row in rows}
 
-        # Build work queue: new URLs first, then existing (re-crawl for change detection)
-        existing_urls = set(existing_hashes.values()) - gone_urls
-        all_work = list(new_urls) + list(existing_urls)
+            new_urls, gone_urls = diff_urls(sitemap_urls, existing_hashes)
 
-        # Resume from cursor if present — skip URLs already processed in a prior run
-        cursor_row = await pool.fetchrow("SELECT last_url FROM app.crawl_cursor WHERE id = 'main'")
-        if cursor_row and cursor_row["last_url"] in all_work:
-            resume_idx = all_work.index(cursor_row["last_url"])
-            all_work = all_work[resume_idx:]
-
-        work_queue = all_work[:PER_RUN_CAP]
-        remaining = all_work[PER_RUN_CAP:]
-
-        # Checkpoint the first URL of the next batch (None if done)
-        next_cursor = remaining[0] if remaining else None
-        await pool.execute(
-            "INSERT INTO app.crawl_cursor (id, last_url) VALUES ('main', $1) "
-            "ON CONFLICT (id) DO UPDATE SET last_url = $1, updated_at = now()",
-            next_cursor,
-        )
-
-        # Ingest each URL using the shared client
-        processed = 0
-        for url in work_queue:
-            try:
-                await ingest_one_page(url, run_id, pool, client=client)
-                processed += 1
-            except Exception:
+            if gone_urls:
                 await pool.execute(
-                    "INSERT INTO app.crawl_log (run_id, url, outcome) VALUES ($1, $2, 'failed')",
-                    run_id,
-                    url,
+                    "UPDATE app.documents SET status = 'gone' WHERE url = ANY($1::text[])",
+                    list(gone_urls),
                 )
 
-    # Schedule concept extraction as a background task (runs after response is returned)
-    background_tasks.add_task(_run_concept_extraction)
+            existing_urls = set(existing_hashes.values()) - gone_urls
+            all_work = list(new_urls) + list(existing_urls)
 
+            cursor_row = await pool.fetchrow(
+                "SELECT last_url FROM app.crawl_cursor WHERE id = 'main'"
+            )
+            if cursor_row and cursor_row["last_url"] in all_work:
+                resume_idx = all_work.index(cursor_row["last_url"])
+                all_work = all_work[resume_idx:]
+
+            work_queue = all_work[:PER_RUN_CAP]
+            remaining = all_work[PER_RUN_CAP:]
+
+            next_cursor = remaining[0] if remaining else None
+            await pool.execute(
+                "INSERT INTO app.crawl_cursor (id, last_url) VALUES ('main', $1) "
+                "ON CONFLICT (id) DO UPDATE SET last_url = $1, updated_at = now()",
+                next_cursor,
+            )
+
+            processed = 0
+            for url in work_queue:
+                try:
+                    await ingest_one_page(url, run_id, pool, client=client)
+                    processed += 1
+                    await asyncio.sleep(CRAWL_DELAY_SECONDS)  # rate limit crawl
+                except Exception:
+                    await pool.execute(
+                        "INSERT INTO app.crawl_log (run_id, url, outcome) "
+                        "VALUES ($1, $2, 'failed')",
+                        run_id,
+                        url,
+                    )
+    finally:
+        # Always release lock
+        await pool.execute(
+            "UPDATE app.crawl_cursor SET last_url = 'IDLE', updated_at = now() WHERE id = 'lock'"
+        )
+
+    background_tasks.add_task(_run_concept_extraction)
     return {"run_id": str(run_id), "processed": processed, "gone": len(gone_urls)}
 
 

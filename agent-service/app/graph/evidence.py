@@ -1,5 +1,6 @@
 """Hybrid evidence extraction: structured parser + Ollama LLM batch job."""
 
+import asyncio
 import json
 import logging
 import re
@@ -419,14 +420,17 @@ async def extract_evidence(
     llm_calls = 0
     errors = 0
 
+    fetch_sem = asyncio.Semaphore(5)  # max 5 concurrent HTML fetches
+
     async with httpx.AsyncClient(follow_redirects=True, timeout=30) as http_client:
         for row in rows:
             try:
-                # Fetch HTML
-                resp = await http_client.get(
-                    row["url"], headers={"User-Agent": "aws-docs-graph/1.0"}
-                )
-                resp.raise_for_status()
+                # Fetch HTML with concurrency limit
+                async with fetch_sem:
+                    resp = await http_client.get(
+                        row["url"], headers={"User-Agent": "aws-docs-graph/1.0"}
+                    )
+                    resp.raise_for_status()
                 html = resp.text
                 source_url = row["url"]
                 source_title = row["title"] or ""
