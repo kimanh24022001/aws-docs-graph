@@ -20,9 +20,6 @@ CANONICAL_MAP: dict[str, str] = {
     "embedded-csdk": "sdk",
     "freertos": "sdk",
     "code-library": "sdk",
-    "appstudio": "sdk",
-    "aws-sdk-go": "sdk",
-    "aws-sdk-pandas": "sdk",
 }
 
 
@@ -45,12 +42,14 @@ async def standardize_entities() -> dict:
         )
         # result is e.g. "UPDATE 733" — parse the count
         try:
-            count = int(result.split()[-1])
-            postgres_updated += count
+            pg_count = int(result.split()[-1])
+            postgres_updated += pg_count
         except (ValueError, IndexError):
-            pass
+            logger.debug("Could not parse postgres result for %s: %r", old_name, result)
+            pg_count = 0
 
         # Neo4j
+        neo4j_count = 0
         async with neo4j_session() as s:
             cypher_result = await s.run(
                 "MATCH (d:Document {service: $old}) SET d.service = $new RETURN count(d) AS cnt",
@@ -59,9 +58,12 @@ async def standardize_entities() -> dict:
             )
             data = await cypher_result.data()
             if data:
-                neo4j_updated += data[0].get("cnt", 0)
+                neo4j_count = data[0].get("cnt", 0)
+                neo4j_updated += neo4j_count
 
-        if postgres_updated or neo4j_updated:
-            logger.info("Standardized %s → %s", old_name, canonical)
+        if pg_count or neo4j_count:
+            logger.info(
+                "Standardized %s → %s (pg=%d, neo4j=%d)", old_name, canonical, pg_count, neo4j_count
+            )
 
     return {"postgres_updated": postgres_updated, "neo4j_updated": neo4j_updated}
