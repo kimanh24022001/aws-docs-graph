@@ -61,16 +61,19 @@ export default function AskPage() {
 
           <section style={{ marginBottom: 32 }}>
             <h2 style={{ fontSize: 18, marginBottom: 12 }}>
-              Citations ({result.citations.length})
+              Citations ({(result.citations ?? []).length})
             </h2>
-            <CitationsPanel citations={result.citations} />
+            <CitationsPanel citations={result.citations ?? []} />
           </section>
 
           <section>
             <h2 style={{ fontSize: 18, marginBottom: 12 }}>
-              Related Docs ({result.related_docs.length})
+              Related Docs (
+              {(result.relatedDocs ?? result.related_docs ?? []).length})
             </h2>
-            <RelatedDocsPanel relatedDocs={result.related_docs} />
+            <RelatedDocsPanel
+              relatedDocs={result.relatedDocs ?? result.related_docs ?? []}
+            />
           </section>
         </div>
       )}

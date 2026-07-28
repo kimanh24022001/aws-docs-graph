@@ -32,6 +32,7 @@ export interface QueryResponse {
   answer: string | null;
   citations: Citation[];
   related_docs: RelatedDoc[];
+  relatedDocs?: RelatedDoc[];
   metadata: QueryMetadata;
   created_at: string;
 }
