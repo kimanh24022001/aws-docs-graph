@@ -42,6 +42,7 @@ export async function middleware(request: NextRequest) {
     pathname === "/graph" ||
     pathname.startsWith("/graph/") ||
     pathname === "/galaxy" ||
+    pathname === "/ask" ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico";
 

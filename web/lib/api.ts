@@ -46,6 +46,10 @@ async function apiFetch<T>(
   };
   if (auth) {
     headers["Authorization"] = auth;
+  } else if (!skipAuth) {
+    // Dev fallback: inject test user when not logged in
+    headers["X-User-Id"] = "00000000-0000-0000-0000-000000000001";
+    headers["X-Org-Id"] = "00000000-0000-0000-0000-000000000001";
   }
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -164,9 +168,7 @@ export async function fetchEvidence(
   );
 }
 
-export async function fetchServiceEvidenceEdges(
-  service: string,
-): Promise<{
+export async function fetchServiceEvidenceEdges(service: string): Promise<{
   service: string;
   edges: {
     target: string;
