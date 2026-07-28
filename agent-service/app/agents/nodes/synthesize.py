@@ -15,7 +15,16 @@ SYSTEM_PROMPT = (
 def _get_client():
     global _client
     if _client is None:
-        _client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+        import os
+
+        # Use SAP proxy if available (ANTHROPIC_AUTH_TOKEN + ANTHROPIC_BASE_URL env vars)
+        # Otherwise fall back to direct Anthropic API key
+        auth_token = os.environ.get("ANTHROPIC_AUTH_TOKEN")
+        base_url = os.environ.get("ANTHROPIC_BASE_URL")
+        if auth_token and base_url:
+            _client = anthropic.AsyncAnthropic(api_key=auth_token, base_url=base_url)
+        else:
+            _client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     return _client
 
 

@@ -24,7 +24,14 @@ question_type must be one of: "factual", "navigation_only", "comparison"
 def _get_client():
     global _client
     if _client is None:
-        _client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+        import os
+
+        auth_token = os.environ.get("ANTHROPIC_AUTH_TOKEN")
+        base_url = os.environ.get("ANTHROPIC_BASE_URL")
+        if auth_token and base_url:
+            _client = anthropic.AsyncAnthropic(api_key=auth_token, base_url=base_url)
+        else:
+            _client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     return _client
 
 
