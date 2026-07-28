@@ -20,7 +20,10 @@ public class AgentServiceClient implements AgentServicePort {
   private final String agentServiceUrl;
   private final ObjectMapper objectMapper = new ObjectMapper();
   private final HttpClient httpClient =
-      HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+      HttpClient.newBuilder()
+          .connectTimeout(Duration.ofSeconds(5))
+          .version(java.net.http.HttpClient.Version.HTTP_1_1)
+          .build();
 
   public AgentServiceClient(@Value("${agent.service.url}") String agentServiceUrl) {
     this.agentServiceUrl = agentServiceUrl;
@@ -38,11 +41,13 @@ public class AgentServiceClient implements AgentServicePort {
                   "org_id", orgId,
                   "question", question));
 
+      var bodyBytes = body.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+
       var request =
           HttpRequest.newBuilder()
               .uri(URI.create(agentServiceUrl + "/internal/agents/run"))
-              .header("Content-Type", "application/json")
-              .POST(HttpRequest.BodyPublishers.ofString(body))
+              .header("Content-Type", "application/json; charset=utf-8")
+              .POST(HttpRequest.BodyPublishers.ofByteArray(bodyBytes))
               .timeout(Duration.ofSeconds(28))
               .build();
 

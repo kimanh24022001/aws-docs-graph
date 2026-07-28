@@ -125,11 +125,11 @@ public class QueryRepositoryImpl implements QueryRepository {
   }
 
   private void setRlsUserId(String userId) {
-    // Use parameterised set_config() to prevent SQL injection
+    // is_local=true: setting is transaction-scoped, ensuring same connection context
     jdbc.execute(
         (java.sql.Connection conn) -> {
           try (var ps =
-              conn.prepareStatement("select set_config('app.current_user_id', ?, false)")) {
+              conn.prepareStatement("select set_config('app.current_user_id', ?, true)")) {
             ps.setString(1, userId);
             ps.execute();
           }
