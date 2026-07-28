@@ -22,8 +22,11 @@ public class QueryController {
   @PostMapping
   public ResponseEntity<QueryResponse> submit(
       @Valid @RequestBody SubmitQueryRequest body, HttpServletRequest request) {
+    // In prod: injected by Lambda Authorizer. In local dev: fallback to test user.
     var userId = request.getHeader("X-User-Id");
     var orgId = request.getHeader("X-Org-Id");
+    if (userId == null || userId.isBlank()) userId = "00000000-0000-0000-0000-000000000001";
+    if (orgId == null || orgId.isBlank()) orgId = "00000000-0000-0000-0000-000000000001";
 
     var result =
         submitQueryUseCase.submit(
