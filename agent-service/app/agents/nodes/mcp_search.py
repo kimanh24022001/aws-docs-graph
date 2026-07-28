@@ -112,8 +112,15 @@ async def mcp_search_node(state: AgentState) -> AgentState:
             if not session_id:
                 raise RuntimeError("Failed to initialize MCP session")
 
-            for kw in state["keywords"][:3]:
-                results.extend(await _search_one(client, kw, session_id))
+            # Search using the full question + top keywords for better results
+            question = state.get("question", "")
+            keywords = state["keywords"][:2]
+            search_phrases = [question] + [
+                f"{kw} AWS" for kw in keywords if kw.lower() not in question.lower()
+            ]
+
+            for phrase in search_phrases[:3]:
+                results.extend(await _search_one(client, phrase, session_id))
 
         # Deduplicate by URL
         seen = set()
