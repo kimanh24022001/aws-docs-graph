@@ -113,3 +113,26 @@ export interface EvidenceResponse {
   rel_type: string;
   evidence: EvidenceItem[];
 }
+
+export interface MyLearningNode {
+  id: string;
+  url: string;
+  title: string;
+  service: string;
+  visitCount: number;
+  firstVisitedAt: string;
+  lastVisitedAt: string;
+}
+
+export interface MyLearningEdge {
+  source: string;
+  target: string;
+  weight: number;
+}
+
+export interface MyLearningResponse {
+  nodes: MyLearningNode[];
+  edges: MyLearningEdge[];
+  totalDocs: number;
+  totalQueries: number;
+}

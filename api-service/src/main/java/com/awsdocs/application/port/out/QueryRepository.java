@@ -1,6 +1,8 @@
 package com.awsdocs.application.port.out;
 
 import com.awsdocs.domain.model.QueryResult;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -15,5 +17,13 @@ public interface QueryRepository {
 
   Optional<QueryResult> findByIdempotencyKey(String userId, String idempotencyKey);
 
+  Optional<QueryResult> findSimilarQuestion(String userId, String question);
+
+  Optional<QueryResult> findByEmbedding(String userId, String pgVector);
+
+  void storeEmbedding(java.util.UUID queryId, java.util.List<Double> embedding);
+
   double getDailyLlmCostForUser(String userId);
+
+  List<Map<String, Object>> listRecent(String userId, int limit);
 }

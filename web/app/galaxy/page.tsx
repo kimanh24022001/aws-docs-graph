@@ -17,10 +17,12 @@ import {
   fetchClusters,
   fetchGraphOverview,
   fetchServiceEvidenceEdges,
+  fetchMyLearning,
 } from "@/lib/api";
 import { categoryFor, categoryColor } from "@/lib/categories";
 import type { GalaxyCluster, GraphNode } from "@/lib/types";
 import { EvidencePanel } from "@/components/EvidencePanel";
+import { MyLearningGraph } from "@/components/MyLearningGraph";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -639,6 +641,7 @@ function buildPlanetData(clusters: GalaxyCluster[]): PlanetData[] {
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function GalaxyPage() {
+  const [galaxyMode, setGalaxyMode] = useState<"all" | "learning">("all");
   const [view, setView] = useState<View>({ level: "categories" });
   const [evidenceEdge, setEvidenceEdge] = useState<{
     src: string;
@@ -646,6 +649,13 @@ export default function GalaxyPage() {
     relType: string;
     color: string;
   } | null>(null);
+
+  const learningQ = useQuery({
+    queryKey: ["my-learning"],
+    queryFn: () => fetchMyLearning(),
+    enabled: galaxyMode === "learning",
+    staleTime: 5 * 60 * 1000,
+  });
 
   const clustersQ = useQuery({
     queryKey: ["galaxy", "clusters"],
@@ -871,67 +881,173 @@ export default function GalaxyPage() {
           pointerEvents: "none",
         }}
       >
-        {(view.level === "category" || view.level === "service") && (
+        {/* Mode toggle */}
+        <div
+          style={{
+            display: "flex",
+            gap: 4,
+            background: "rgba(255,255,255,0.06)",
+            borderRadius: 8,
+            padding: 3,
+            pointerEvents: "all",
+          }}
+        >
           <button
-            onClick={() => {
-              if (view.level === "service")
-                setView({
-                  level: "category",
-                  category: categoryFor((view as { service: string }).service),
-                });
-              else setView({ level: "categories" });
-            }}
+            onClick={() => setGalaxyMode("all")}
             style={{
-              padding: "5px 14px",
-              background: "rgba(255,255,255,0.08)",
-              border: `1px solid ${currentColor}55`,
+              padding: "4px 14px",
               borderRadius: 6,
+              border: "none",
               cursor: "pointer",
               fontSize: 12,
-              color: "#ccc",
-              pointerEvents: "all",
+              fontWeight: 600,
+              background: galaxyMode === "all" ? "#4285f4" : "transparent",
+              color: galaxyMode === "all" ? "#fff" : "#888",
+              transition: "background 0.2s",
             }}
           >
-            ← Back
+            All AWS
           </button>
-        )}
+          <button
+            onClick={() => setGalaxyMode("learning")}
+            style={{
+              padding: "4px 14px",
+              borderRadius: 6,
+              border: "none",
+              cursor: "pointer",
+              fontSize: 12,
+              fontWeight: 600,
+              background: galaxyMode === "learning" ? "#34a853" : "transparent",
+              color: galaxyMode === "learning" ? "#fff" : "#888",
+              transition: "background 0.2s",
+            }}
+          >
+            My Learning
+          </button>
+        </div>
+
+        {galaxyMode === "all" &&
+          (view.level === "category" || view.level === "service") && (
+            <button
+              onClick={() => {
+                if (view.level === "service")
+                  setView({
+                    level: "category",
+                    category: categoryFor(
+                      (view as { service: string }).service,
+                    ),
+                  });
+                else setView({ level: "categories" });
+              }}
+              style={{
+                padding: "5px 14px",
+                background: "rgba(255,255,255,0.08)",
+                border: `1px solid ${currentColor}55`,
+                borderRadius: 6,
+                cursor: "pointer",
+                fontSize: 12,
+                color: "#ccc",
+                pointerEvents: "all",
+              }}
+            >
+              ← Back
+            </button>
+          )}
         <h1
           style={{
             fontSize: 18,
             margin: 0,
-            color: currentColor,
+            color: galaxyMode === "learning" ? "#34a853" : currentColor,
             fontWeight: 700,
-            textShadow: `0 0 20px ${currentColor}`,
+            textShadow: `0 0 20px ${galaxyMode === "learning" ? "#34a853" : currentColor}`,
           }}
         >
-          {currentLabel}
+          {galaxyMode === "learning" ? "🌱 My Learning" : currentLabel}
         </h1>
-        <span style={{ color: "#555", fontSize: 12 }}>{currentCount}</span>
+        <span style={{ color: "#555", fontSize: 12 }}>
+          {galaxyMode === "learning"
+            ? learningQ.data
+              ? `${learningQ.data.totalDocs} docs · ${learningQ.data.totalQueries} queries`
+              : ""
+            : currentCount}
+        </span>
       </div>
 
-      {/* 3D Canvas */}
-      <Canvas camera={{ position: [0, 20, 60], fov: 45 }} frameloop="always">
-        <color attach="background" args={["#08080b"]} />
-        <Suspense fallback={null}>
-          {view.level === "categories" ? (
-            <GalaxyScene
-              planets={planets}
-              edges={[]}
-              onPlanetClick={handlePlanetClick}
-              onLinkClick={handleLinkClick}
-            />
-          ) : view.level === "category" ? (
-            <ServiceScene
-              services={serviceData.planets}
-              serviceEdges={serviceData.edges}
-              onServiceClick={handleServiceClick}
-              onEdgeClick={handleEdgeClick}
+      {/* My Learning view */}
+      {galaxyMode === "learning" && (
+        <div style={{ width: "100vw", height: "100vh" }}>
+          {learningQ.isLoading ? (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "100%",
+                color: "#555",
+              }}
+            >
+              Loading your learning graph…
+            </div>
+          ) : learningQ.data && learningQ.data.nodes.length > 0 ? (
+            <MyLearningGraph
+              nodes={learningQ.data.nodes}
+              edges={learningQ.data.edges}
             />
           ) : (
-            <DocScene nodes={catNodes} />
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "100%",
+                textAlign: "center",
+                color: "#666",
+              }}
+            >
+              <p style={{ fontSize: 48, margin: 0 }}>🌱</p>
+              <h2 style={{ color: "#888", marginTop: 16 }}>
+                Your learning graph is empty
+              </h2>
+              <p style={{ color: "#555" }}>
+                Ask questions at /ask to start building it.
+              </p>
+              <a
+                href="/ask"
+                style={{ color: "#34a853", textDecoration: "none" }}
+              >
+                Go to /ask →
+              </a>
+            </div>
           )}
-        </Suspense>
-      </Canvas>
+        </div>
+      )}
+
+      {/* 3D Galaxy canvas */}
+      {galaxyMode === "all" && (
+        <Canvas camera={{ position: [0, 20, 60], fov: 45 }} frameloop="always">
+          <color attach="background" args={["#08080b"]} />
+          <Suspense fallback={null}>
+            {view.level === "categories" ? (
+              <GalaxyScene
+                planets={planets}
+                edges={[]}
+                onPlanetClick={handlePlanetClick}
+                onLinkClick={handleLinkClick}
+              />
+            ) : view.level === "category" ? (
+              <ServiceScene
+                services={serviceData.planets}
+                serviceEdges={serviceData.edges}
+                onServiceClick={handleServiceClick}
+                onEdgeClick={handleEdgeClick}
+              />
+            ) : (
+              <DocScene nodes={catNodes} />
+            )}
+          </Suspense>
+        </Canvas>
+      )}
 
       {evidenceEdge && (
         <EvidencePanel

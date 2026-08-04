@@ -9,6 +9,7 @@ from app.db.postgres import close_pool
 from app.graph.clustering import router as clustering_router
 from app.graph.co_returned import router as co_returned_router
 from app.graph.concepts import router as concepts_router
+from app.graph.embed import router as embed_router
 from app.graph.evidence import router as evidence_router
 from app.graph.relationships import router as relationships_router
 from app.graph.standardize import router as standardize_router
@@ -30,6 +31,7 @@ app.include_router(ingest_page_router)
 app.include_router(ingest_sitemap_router)
 app.include_router(ingest_bootstrap_router)
 app.include_router(co_returned_router)
+app.include_router(embed_router)
 app.include_router(clustering_router)
 app.include_router(concepts_router)
 app.include_router(evidence_router)

@@ -5,7 +5,9 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import com.awsdocs.application.port.out.AgentServicePort;
+import com.awsdocs.application.port.out.EmbeddingPort;
 import com.awsdocs.application.port.out.QueryRepository;
+import com.awsdocs.application.port.out.UserVisitsRepository;
 import com.awsdocs.domain.exception.CostCapExceededException;
 import com.awsdocs.domain.model.QueryRequest;
 import com.awsdocs.domain.model.QueryResult;
@@ -24,6 +26,8 @@ class QueryServiceTest {
 
   @Mock QueryRepository queryRepository;
   @Mock AgentServicePort agentServicePort;
+  @Mock UserVisitsRepository userVisitsRepository;
+  @Mock EmbeddingPort embeddingPort;
   @InjectMocks QueryService queryService;
 
   @Test
@@ -102,5 +106,29 @@ class QueryServiceTest {
 
     assertThat(result.answer()).isEqualTo("Cached");
     verifyNoInteractions(agentServicePort);
+  }
+
+  @Test
+  void submit_upserts_visits_for_each_citation() {
+    var queryId = UUID.randomUUID();
+    var citation = new java.util.HashMap<String, Object>();
+    citation.put("url", "https://docs.aws.amazon.com/lambda/latest/dg/welcome.html");
+    citation.put("title", "What is Lambda?");
+    citation.put("service", "lambda");
+    var expected = new QueryResult(queryId.toString(), "Answer",
+        List.of(citation), List.of(), Map.of());
+
+    when(queryRepository.findByIdempotencyKey(any(), any())).thenReturn(Optional.empty());
+    when(queryRepository.getDailyLlmCostForUser(any())).thenReturn(0.0);
+    when(queryRepository.createPending(any(), any(), any(), any())).thenReturn(queryId);
+    when(agentServicePort.runAgent(any(), any(), any(), any())).thenReturn(expected);
+
+    queryService.submit(new QueryRequest("user1", "org1", "test?", "k1"));
+
+    verify(userVisitsRepository).upsertVisit(
+        "user1",
+        "https://docs.aws.amazon.com/lambda/latest/dg/welcome.html",
+        "What is Lambda?",
+        "lambda");
   }
 }

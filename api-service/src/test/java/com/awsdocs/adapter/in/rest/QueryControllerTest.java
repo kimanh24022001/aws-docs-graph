@@ -5,6 +5,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import com.awsdocs.application.port.in.ListQueriesUseCase;
 import com.awsdocs.application.port.in.SubmitQueryUseCase;
 import com.awsdocs.domain.model.QueryResult;
 import java.util.List;
@@ -21,6 +22,7 @@ class QueryControllerTest {
 
   @Autowired MockMvc mockMvc;
   @MockBean SubmitQueryUseCase submitQueryUseCase;
+  @MockBean ListQueriesUseCase listQueriesUseCase;
 
   @Test
   void post_queries_returns_answer() throws Exception {

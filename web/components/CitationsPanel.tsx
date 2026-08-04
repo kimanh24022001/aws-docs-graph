@@ -10,8 +10,12 @@ export function CitationsPanel({ citations }: Props) {
   }
   return (
     <ol style={{ paddingLeft: 20, margin: 0 }}>
-      {citations.map((c) => (
-        <li key={c.rank} id={`citation-${c.rank}`} style={{ marginBottom: 12 }}>
+      {citations.map((c, i) => (
+        <li
+          key={`${c.url}-${i}`}
+          id={`citation-${c.rank ?? i + 1}`}
+          style={{ marginBottom: 12 }}
+        >
           <a
             href={c.url}
             target="_blank"

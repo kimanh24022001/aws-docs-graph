@@ -11,6 +11,7 @@ import type {
   GalaxyCluster,
   GalaxyFocusResponse,
   EvidenceResponse,
+  MyLearningResponse,
 } from "./types";
 
 export const queryClient = new QueryClient({
@@ -180,6 +181,17 @@ export async function fetchServiceEvidenceEdges(service: string): Promise<{
 }> {
   return apiFetch(
     `/v1/graph/services/${encodeURIComponent(service)}/evidence-edges`,
+    undefined,
+    true,
+  );
+}
+
+export async function fetchMyLearning(
+  userId?: string,
+): Promise<MyLearningResponse> {
+  const query = userId ? `?userId=${encodeURIComponent(userId)}` : "";
+  return apiFetch<MyLearningResponse>(
+    `/v1/graph/my-learning${query}`,
     undefined,
     true,
   );
