@@ -1,0 +1,9 @@
+[build]
+builder = "NIXPACKS"
+buildCommand = "cd api-service && mvn package -DskipTests"
+
+[deploy]
+startCommand = "java -jar api-service/target/api-service-*.jar"
+healthcheckPath = "/v1/healthz"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
